@@ -1,0 +1,55 @@
+@model List<AdminMemberRow>
+@{ ViewData["Title"] = "Members"; }
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+    <h1 style="margin:0;">All members</h1>
+    <span style="flex:1"></span>
+    <a class="btn btn-sm" asp-action="Approvals">Pending queue</a>
+</div>
+<p class="muted">Every account and its status. Approve pending members, or ban/unban anyone.</p>
+
+<div class="panel">
+    @foreach (var m in Model)
+    {
+        <div class="thread-row" style="align-items:center;">
+            <div style="flex:1 1 auto;min-width:0;">
+                <a asp-controller="Profile" asp-action="View" asp-route-name="@m.DisplayName"><strong>@m.DisplayName</strong></a>
+                @if (m.IsBanned)
+                {
+                    <span class="chip" style="color:#ff8a8a;border-color:rgba(255,82,82,.4);">banned</span>
+                }
+                else if (!m.IsApproved)
+                {
+                    <span class="chip chip-cat">pending</span>
+                }
+                else
+                {
+                    <span class="chip" style="color:var(--green);border-color:rgba(76,175,80,.4);">approved</span>
+                }
+                <div class="thread-meta">
+                    <span class="rep">@Describe(m.Reputation)</span> · @m.PostCount posts · joined @TimeAgo(m.CreatedAtUtc)
+                    @if (m.LastLoginAtUtc is DateTime ll) { <text>· last seen @TimeAgo(ll)</text> }
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                @if (!m.IsApproved)
+                {
+                    <form asp-action="Approve" asp-route-id="@m.Id" method="post">
+                        <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                    </form>
+                }
+                @if (m.IsBanned)
+                {
+                    <form asp-action="Unban" asp-route-id="@m.Id" method="post">
+                        <button type="submit" class="btn btn-sm">Unban</button>
+                    </form>
+                }
+                else
+                {
+                    <form asp-action="Ban" asp-route-id="@m.Id" method="post" data-confirm="Ban @m.DisplayName?">
+                        <button type="submit" class="btn btn-danger btn-sm">Ban</button>
+                    </form>
+                }
+            </div>
+        </div>
+    }
+</div>

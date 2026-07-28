@@ -1,0 +1,81 @@
+@{
+    ViewData["Title"] = "Settings";
+    var hasEmail = ViewBag.HasEmail == true;
+    string? email = ViewBag.Email as string;
+}
+<h1>Account settings</h1>
+<p class="muted">Change your password or username, set an optional recovery email, or delete your account.</p>
+
+<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-color:rgba(255,102,0,.35);">
+    <div style="flex:1 1 auto;min-width:0;">
+        <h2 class="panel-title" style="margin:0;">Public profile</h2>
+        <div class="muted" style="font-size:13px;">Avatar, signature, PGP key, Monero donation address, website &amp; social links.</div>
+    </div>
+    <a class="btn btn-primary" asp-controller="Profile" asp-action="Edit">Edit profile →</a>
+    <a class="btn" asp-controller="Profile" asp-action="Me">View my profile</a>
+</div>
+
+<div class="panel">
+    <h2 class="panel-title">Change password</h2>
+    <form asp-action="ChangePassword" method="post" class="form-narrow">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="CurrentPassword" autocomplete="current-password" />
+        </div>
+        <div class="form-group">
+            <label>New password</label>
+            <input type="password" name="NewPassword" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+            <label>Confirm new password</label>
+            <input type="password" name="ConfirmPassword" autocomplete="new-password" />
+        </div>
+        <button type="submit" class="btn btn-primary">Update password</button>
+    </form>
+</div>
+
+<div class="panel">
+    <h2 class="panel-title">Change username</h2>
+    <form asp-action="ChangeUsername" method="post" class="form-narrow">
+        <div class="form-group">
+            <label>New username</label>
+            <input type="text" name="NewUsername" />
+            <div class="hint">Letters, numbers, and underscores. Your posts keep their history.</div>
+        </div>
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="CurrentPassword" autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn">Change username</button>
+    </form>
+</div>
+
+<div class="panel">
+    <h2 class="panel-title">Recovery email (optional)</h2>
+    <form asp-action="SetEmail" method="post" class="form-narrow">
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="Email" value="@email" placeholder="you@example.com" />
+            <div class="hint">@(hasEmail ? "An email is set — password reset is available. Clear it to remove." : "No email set. Add one to enable password reset.")</div>
+        </div>
+        <button type="submit" class="btn">Save email</button>
+    </form>
+</div>
+
+<div class="panel" style="border-color: rgba(255,82,82,.35);">
+    <h2 class="panel-title" style="color:#ff8a8a;">Delete account</h2>
+    <p class="muted">This hides your profile and blacks out all your posts. It cannot be undone.</p>
+    <form asp-action="DeleteAccount" method="post" class="form-narrow">
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="CurrentPassword" autocomplete="current-password" />
+        </div>
+        <div class="form-group">
+            <label style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--fg)">
+                <input type="checkbox" name="Confirm" value="true" style="width:auto" /> Yes, permanently delete my account and hide my posts
+            </label>
+        </div>
+        <button type="submit" class="btn btn-danger">Delete my account</button>
+    </form>
+</div>

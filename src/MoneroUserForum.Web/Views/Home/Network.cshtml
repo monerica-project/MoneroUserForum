@@ -1,0 +1,31 @@
+@{
+    ViewData["Title"] = "Monerica Network";
+    ViewData["Description"] = "The Monerica Network — a family of independent, privacy-focused Monero sites: the Monero directory, academy, price, market cap, maps, and more.";
+    var sites = new (string Name, string Url, string Desc)[]
+    {
+        ("Monerica", "https://monerica.com", "The Monero directory — businesses, services, exchanges, and tools that accept or support XMR."),
+        ("Monero Academy", "https://moneroacademy.com", "Learn Monero: privacy, wallets, running nodes, and how the protocol actually works."),
+        ("MoneroPriceNow", "https://moneropricenow.com", "Live Monero price, charts, and market data at a glance."),
+        ("MoneroMarketCap", "https://moneromarketcap.com", "Crypto market caps priced in Monero — the market from an XMR point of view."),
+        ("Monero Maps", "https://moneromaps.com", "A map of physical places and merchants that accept Monero."),
+        ("How To Buy Monero", "https://howtobuymonero.net", "A simple, no-nonsense guide to buying your first Monero."),
+        ("Monerica Blog", "https://blog.monerica.com", "News, guides, and articles from across the Monerica network."),
+    };
+}
+
+<div class="panel" style="text-align:center;">
+    <img src="~/img/muf-mark.png" alt="" style="width:56px;height:56px;border-radius:10px;" />
+    <h1 style="margin:10px 0 4px;">The <span class="accent">Monerica</span> Network</h1>
+    <p class="muted" style="max-width:640px;margin:0 auto;">Monero User Forum is part of the Monerica Network — a family of independent, privacy-focused sites for the Monero community.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+    @foreach (var s in sites)
+    {
+        <a class="panel" style="display:block;margin:0;" href="@s.Url" target="_blank" rel="noopener">
+            <div style="font-weight:800;color:var(--mono-orange-2);font-size:16px;">@s.Name</div>
+            <div class="dim" style="font-size:12px;margin:2px 0 8px;">@s.Url.Replace("https://", "")</div>
+            <div class="muted" style="font-size:13.5px;line-height:1.5;">@s.Desc</div>
+        </a>
+    }
+</div>

@@ -1,0 +1,31 @@
+@model ComposeViewModel
+@{ ViewData["Title"] = "New message"; }
+<div class="thread-layout">
+<div class="thread-main">
+<div class="panel">
+    <h1>New message</h1>
+    <form asp-action="Send" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="form-group" style="position:relative;">
+            <label asp-for="ToUsername"></label>
+            <input asp-for="ToUsername" id="to-user" autocomplete="off" />
+            <div id="to-suggest" class="search-suggest" style="display:none;left:0;right:0;max-width:none;"></div>
+            <span asp-validation-for="ToUsername" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label asp-for="Body">Message</label>
+            <textarea asp-for="Body" id="body-input" rows="5" required></textarea>
+            <span asp-validation-for="Body" class="text-danger"></span>
+        </div>
+        <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+</div>
+</div>
+<aside class="thread-side">
+    @await Component.InvokeAsync("Sponsors", new { side = true })
+</aside>
+</div>
+
+@section Scripts {
+    <script src="~/js/compose.js" asp-append-version="true"></script>
+}

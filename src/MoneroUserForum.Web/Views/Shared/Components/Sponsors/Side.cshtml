@@ -1,0 +1,33 @@
+@model List<MoneroUserForum.Web.Support.Sponsor>
+@if (Model.Count > 0)
+{
+    <div class="sponsor-slot sponsor-side">
+        <div class="label">Sponsored · via <a href="https://monerica.com" target="_blank" rel="noopener">Monerica</a></div>
+        <div style="margin-top:8px;">
+            @foreach (var s in Model)
+            {
+                <a class="sponsor-card" href="@(SafeHttpUrl(s.Link) ?? "#")" target="_blank" rel="nofollow sponsored noopener">
+                    <span class="sponsor-name">
+                        @s.Name
+                        @if (s.ReviewRating is double r && s.ReviewCount > 0)
+                        {
+                            <span class="sponsor-rating">★ @r.ToString("0.0")</span>
+                        }
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(s.Description))
+                    {
+                        <span class="sponsor-desc">@s.Description</span>
+                    }
+                </a>
+            }
+        </div>
+        <div style="margin-top:8px;font-size:12px;"><a asp-controller="Sponsors" asp-action="Index">See all sponsors →</a></div>
+    </div>
+}
+else
+{
+    <div class="sponsor-slot sponsor-side">
+        <div class="label">Sponsored</div>
+        <div style="margin-top:6px;font-size:13px;"><a asp-controller="Sponsors" asp-action="Index">Advertise here →</a></div>
+    </div>
+}

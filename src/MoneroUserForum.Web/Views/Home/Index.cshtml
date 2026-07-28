@@ -1,0 +1,35 @@
+@model ThreadListViewModel
+@{
+    ViewData["Title"] = null;
+    ViewData["Description"] = "The latest Monero discussions — price talk, technical help, and general chat. A privacy-first forum for Monero users: no email required, works over Tor.";
+    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+}
+
+<div class="thread-layout">
+<div class="thread-main">
+    <div class="panel">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+            <h1 style="margin:0;">@Model.Heading</h1>
+            <span class="nav-spacer" style="flex:1"></span>
+            <a class="btn" asp-controller="Thread" asp-action="Categories">Browse categories</a>
+            @if (canPost)
+            {
+                <a class="btn btn-primary" asp-controller="Thread" asp-action="Create">New thread</a>
+            }
+        </div>
+        @await Html.PartialAsync("_ThreadRows", Model.Threads)
+
+        @if (Model.Page > 1 || Model.HasMore)
+        {
+            <div style="display:flex;justify-content:space-between;margin-top:14px;">
+                <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+                <span class="muted" style="align-self:center;">Page @Model.Page</span>
+                <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+            </div>
+        }
+    </div>
+</div>
+<aside class="thread-side">
+    @await Component.InvokeAsync("Sponsors", new { side = true })
+</aside>
+</div>

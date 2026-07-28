@@ -1,0 +1,221 @@
+@model ThreadDetailViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["OgType"] = "article";
+    var op = Model.Posts.FirstOrDefault(p => p.IsOpeningPost && !p.IsDeleted && !p.AuthorBanned && !p.AuthorDeleted);
+    var opText = op is null ? string.Empty : (op.Body.Length > 160 ? op.Body[..160] + "…" : op.Body);
+    ViewData["Description"] = $"{Model.Title} — {Describe(Model.Category)} on the Monero User Forum. {opText}".Trim();
+    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+    var authed = User.Identity?.IsAuthenticated ?? false;
+    int.TryParse(Context.Request.Query["replyto"], out var replyTo);
+    var replyToPost = replyTo > 0 ? Model.Posts.FirstOrDefault(p => p.Id == replyTo) : null;
+    var replyPrefill = (replyToPost != null && !replyToPost.AuthorDeleted && !replyToPost.AuthorBanned)
+        ? $"@{replyToPost.AuthorName} "
+        : string.Empty;
+}
+
+<div class="thread-layout">
+<div class="thread-main">
+
+<div class="panel">
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="flex:1 1 auto;min-width:0;">
+            <div class="thread-meta"><a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category">@Describe(Model.Category)</a></div>
+            <h1 style="margin:4px 0 0;">@Model.Title</h1>
+            <div class="thread-meta" style="margin-top:6px;">
+                <b style="color:var(--fg)">@Model.ReplyCount</b> repl@(Model.ReplyCount == 1 ? "y" : "ies")
+                · <b style="color:var(--fg)">@Model.UniqueViews</b> unique view@(Model.UniqueViews == 1 ? "" : "s")
+            </div>
+        </div>
+        @if (User.IsInRole("Admin"))
+        {
+            <form asp-controller="Thread" asp-action="DeleteThread" asp-route-id="@Model.ThreadId" method="post"
+                  data-confirm="Permanently delete this entire thread and all its posts?">
+                <button type="submit" class="btn btn-sm btn-danger">Delete thread</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (Model.IsCensored && User.IsInRole("Admin"))
+{
+    <div class="alert alert-error" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="flex:1 1 auto;min-width:0;">
+            <strong>This thread is censored.</strong> It is hidden from members and 404s for the public. Only admins can see it.
+        </span>
+        <form asp-controller="Thread" asp-action="UncensorThread" asp-route-id="@Model.ThreadId" method="post"
+              data-confirm="Restore this thread and make it visible again?">
+            <button type="submit" class="btn btn-sm">Uncensor thread</button>
+        </form>
+    </div>
+}
+
+@foreach (var p in Model.Posts)
+{
+    <div class="post" id="post-@p.Id">
+        <div class="post-inner">
+            <div class="post-author">
+                <img class="avatar" src="@(p.AuthorDeleted ? Url.Content("~/img/muf-mark.png") : (p.AuthorAvatarUrl ?? Url.Content("~/img/muf-mark.png")))" alt="" />
+                @if (p.AuthorDeleted)
+                {
+                    <span class="who muted">[account deleted]</span>
+                }
+                else
+                {
+                    <a class="who" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName">@(p.AuthorBanned ? "[banned]" : p.AuthorName)</a>
+                    <span class="rep">@Describe(p.AuthorReputation)</span>
+                    <span class="pcount"><b>@p.AuthorPostCount</b> post@(p.AuthorPostCount == 1 ? "" : "s")</span>
+                    @if (p.IsOpeningPost) { <span class="chip" style="margin-top:6px;display:inline-block;">Thread starter</span> }
+                }
+            </div>
+            <div class="post-main">
+                <div class="post-meta">
+                    @if (p.ReplyToPostId is int rid)
+                    {
+                        <text>↳ in reply to <a href="#post-@rid">@(p.ReplyToAuthorName ?? "a post")</a> · </text>
+                    }
+                    @TimeAgo(p.CreatedAtUtc)
+                </div>
+
+                @if (p.IsCensored)
+                {
+                    <div class="post-body post-censored"><em>[removed by a moderator to keep the community safe]</em></div>
+                }
+                else if (p.IsDeleted)
+                {
+                    <div class="post-body muted"><em>[deleted by author]</em></div>
+                }
+                else if (p.AuthorBanned)
+                {
+                    <div class="post-body post-banned">@p.Body</div>
+                }
+                else if (p.AuthorDeleted)
+                {
+                    <div class="post-body muted"><em>[hidden — account deleted]</em></div>
+                }
+                else
+                {
+                    <div class="post-body post-md">@Html.Raw(ForumMarkup.ToHtml(p.Body))</div>
+                    foreach (var img in p.ImageUrls)
+                    {
+                        <div style="padding:0 14px 12px;"><img src="@img" alt="attachment" style="border-radius:6px;" /></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(p.AuthorSignature))
+                    {
+                        <div class="post-sig">@p.AuthorSignature</div>
+                    }
+                }
+
+            </div>
+        </div>
+        @{
+            var showReply = canPost && !Model.IsLocked && !p.AuthorDeleted && !p.IsDeleted && !p.IsCensored;
+            var showMod = p.CanModify && !p.IsDeleted && !p.IsCensored;
+            // Per-post censor controls. Hidden while the whole thread is censored —
+            // the thread banner handles restoring it in that case.
+            var showCensor = p.CanCensor && !Model.IsCensored;
+            // Report goes to the admin queue. Shown to approved members on posts that
+            // aren't their own and that they can't already moderate (CanModify covers
+            // author + admin), and only on live content.
+            var showReport = canPost && !p.CanModify && !p.IsDeleted && !p.IsCensored && !p.AuthorDeleted && !p.AuthorBanned;
+        }
+        @if (showReply || showMod || showCensor || showReport || p.Edited)
+        {
+            <div class="post-actions">
+                @if (p.Edited)
+                {
+                    <span class="dim" style="font-size:12px;">edited</span>
+                }
+                <span style="flex:1"></span>
+                @if (showReply)
+                {
+                    <a class="btn btn-sm" href="/thread/@Model.Slug?page=@Model.Page&replyto=@p.Id#reply">Reply</a>
+                }
+                @if (showMod)
+                {
+                    <a class="btn btn-sm" asp-action="EditPost" asp-route-id="@p.Id">Edit</a>
+                    <form asp-action="DeletePost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Delete this post?">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                }
+                @if (showCensor)
+                {
+                    if (p.IsCensored)
+                    {
+                        <form asp-action="UncensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Restore this post and its replies?">
+                            <button type="submit" class="btn btn-sm">Uncensor</button>
+                        </form>
+                    }
+                    else
+                    {
+                        var censorConfirm = p.IsOpeningPost
+                            ? "Censor this whole thread? It hides the thread and every reply from members to keep people safe."
+                            : "Censor this post and all replies beneath it to keep people safe?";
+                        <form asp-action="CensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="@censorConfirm">
+                            <button type="submit" class="btn btn-sm btn-danger">@(p.IsOpeningPost ? "Censor thread" : "Censor")</button>
+                        </form>
+                    }
+                }
+                @if (showReport)
+                {
+                    <details class="report-box">
+                        <summary class="report-summary" title="Report to moderators">⚑ Report</summary>
+                        <form asp-action="Report" method="post" class="report-form">
+                            <input type="hidden" name="threadId" value="@Model.ThreadId" />
+                            <input type="hidden" name="postId" value="@p.Id" />
+                            <input type="text" name="reason" maxlength="300" class="report-reason"
+                                   placeholder="Reason (optional): spam, abuse, threat…" />
+                            <button type="submit" class="btn btn-sm btn-danger">Send report</button>
+                        </form>
+                    </details>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (Model.TotalPages > 1)
+{
+    <div style="display:flex;justify-content:space-between;margin:0 0 16px;">
+        <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-route-slug="@Model.Slug" asp-route-page="@(Model.Page - 1)">← Prev</a> }</span>
+        <span class="muted">Page @Model.Page of @Model.TotalPages</span>
+        <span>@if (Model.Page < Model.TotalPages) { <a class="btn btn-sm" asp-route-slug="@Model.Slug" asp-route-page="@(Model.Page + 1)">Next →</a> }</span>
+    </div>
+}
+
+<div class="panel" id="reply">
+    <h2 class="panel-title">Reply</h2>
+    @if (Model.IsLocked)
+    {
+        <p class="muted">This thread is locked.</p>
+    }
+    else if (!authed)
+    {
+        <p class="muted"><a asp-controller="Account" asp-action="Login">Log in</a> to reply.</p>
+    }
+    else if (!canPost)
+    {
+        <p class="muted">Your account is awaiting approval before you can post.</p>
+    }
+    else
+    {
+        <form asp-controller="Thread" asp-action="Reply" method="post">
+            <input type="hidden" name="ThreadId" value="@Model.ThreadId" />
+            @if (replyTo > 0)
+            {
+                <input type="hidden" name="ReplyToPostId" value="@replyTo" />
+                <p class="thread-meta">Replying to <a href="#post-@replyTo">post #@replyTo</a></p>
+            }
+            <div class="form-group">
+                <textarea name="Body" rows="5" required class="md-editor" placeholder="Write a reply… @@mention to notify. Highlight text and click 🔗 to add a link.">@replyPrefill</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Post reply</button>
+        </form>
+    }
+</div>
+
+</div><!-- /thread-main -->
+<aside class="thread-side">
+    @await Component.InvokeAsync("Sponsors", new { side = true })
+</aside>
+</div><!-- /thread-layout -->

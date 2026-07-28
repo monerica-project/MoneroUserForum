@@ -1,0 +1,45 @@
+@model List<MoneroUserForum.Web.Support.Sponsor>
+@{
+    ViewData["Title"] = "Sponsors";
+    ViewData["Description"] = "Projects sponsoring the Monero User Forum via Monerica. Advertise to the Monero community — buy a placement.";
+}
+
+<div class="panel" style="text-align:center;">
+    <h1 style="margin-top:0;">Sponsors</h1>
+    <p class="muted" style="max-width:640px;margin:0 auto 16px;">
+        These projects support Monero User Forum through <strong>Monerica</strong>. Sponsor placements
+        keep the forum free and independent.
+    </p>
+    <a class="btn btn-primary" href="https://monerica.com" target="_blank" rel="noopener">Advertise here — buy a placement via Monerica</a>
+</div>
+
+@if (Model.Count > 0)
+{
+    <div class="panel">
+        <h2 class="panel-title">Current sponsors</h2>
+        <div class="sponsor-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">
+            @foreach (var s in Model)
+            {
+                <a class="sponsor-card" href="@(SafeHttpUrl(s.Link) ?? "#")" target="_blank" rel="nofollow sponsored noopener">
+                    <span class="sponsor-name">
+                        @s.Name
+                        @if (s.ReviewRating is double r && s.ReviewCount > 0)
+                        {
+                            <span class="sponsor-rating">★ @r.ToString("0.0")</span>
+                        }
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(s.Description))
+                    {
+                        <span class="sponsor-desc">@s.Description</span>
+                    }
+                </a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="panel">
+        <p class="muted">No active sponsors right now — <a href="https://monerica.com" target="_blank" rel="noopener">be the first →</a></p>
+    </div>
+}

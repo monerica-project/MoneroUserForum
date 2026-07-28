@@ -1,0 +1,38 @@
+# ---- Build output ----
+bin/
+obj/
+publish/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.pdb
+
+# ---- IDE / local ----
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+
+# ---- Secrets & sensitive config (NEVER commit) ----
+# Real secrets live in server environment (e.g. /etc/monerouserforum/db.env).
+# These patterns keep them out of the repo if a maintainer adds them locally.
+appsettings.Production.json
+appsettings.*.Production.json
+appsettings.*.local.json
+appsettings.Local.json
+secrets.json
+.env
+*.env
+db.env
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+# ASP.NET Core Data Protection key ring (persisted outside the repo in prod)
+monerouserforum-keys/
+DataProtection-Keys/
+
+# ---- Scratch / reference images dropped in the repo root ----
+Screenshot*.png

@@ -1,0 +1,35 @@
+@model CreateThreadViewModel
+@{ ViewData["Title"] = "New thread"; }
+<div class="panel" style="max-width:720px;">
+    <h1>Start a new thread</h1>
+    <form asp-action="Create" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        @if (ViewBag.ExistingSlug is string existingSlug)
+        {
+            <div class="alert alert-info">
+                A thread with this title already exists:
+                <a href="/thread/@existingSlug"><strong>@ViewBag.ExistingTitle</strong></a>
+            </div>
+        }
+        <div class="form-group">
+            <label asp-for="Title"></label>
+            <input asp-for="Title" autofocus />
+            <span asp-validation-for="Title" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label asp-for="Category"></label>
+            <select asp-for="Category">
+                @foreach (var c in Enum.GetValues<ForumCategory>().Where(x => x != ForumCategory.Unknown))
+                {
+                    <option value="@c">@Describe(c)</option>
+                }
+            </select>
+        </div>
+        <div class="form-group">
+            <label asp-for="Body"></label>
+            <textarea asp-for="Body" rows="10" class="md-editor" placeholder="Write your post… @@mention someone to notify them. Highlight text and click 🔗 to add a link."></textarea>
+            <span asp-validation-for="Body" class="text-danger"></span>
+        </div>
+        <button type="submit" class="btn btn-primary">Post thread</button>
+    </form>
+</div>

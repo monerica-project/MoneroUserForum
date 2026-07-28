@@ -1,0 +1,59 @@
+@model SearchViewModel
+@{ ViewData["Title"] = "Search"; }
+
+<div class="panel">
+    <h1 style="margin-top:0;">Search</h1>
+    <form asp-action="Index" method="get" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="search" name="q" value="@Model.Query" placeholder="Search threads, posts, and members…" style="flex:1 1 240px;" autofocus />
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+</div>
+
+@if (Model.Searched)
+{
+    var nothing = Model.Threads.Count == 0 && Model.Posts.Count == 0 && Model.Users.Count == 0;
+    if (nothing)
+    {
+        <div class="panel"><p class="muted">No results for “@Model.Query”.</p></div>
+    }
+
+    if (Model.Threads.Count > 0)
+    {
+        <div class="panel">
+            <h2 class="panel-title">Threads</h2>
+            @await Html.PartialAsync("_ThreadRows", Model.Threads)
+        </div>
+    }
+
+    if (Model.Posts.Count > 0)
+    {
+        <div class="panel">
+            <h2 class="panel-title">Posts</h2>
+            @foreach (var p in Model.Posts)
+            {
+                <div class="thread-row">
+                    <div style="flex:1 1 auto;min-width:0;">
+                        <a href="/thread/@p.ThreadSlug#post-@p.PostId"><strong>@p.ThreadTitle</strong></a>
+                        <div class="thread-meta">@p.AuthorName · @TimeAgo(p.CreatedAtUtc)</div>
+                        <div class="muted" style="font-size:13px;">@p.Snippet</div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    if (Model.Users.Count > 0)
+    {
+        <div class="panel">
+            <h2 class="panel-title">Members</h2>
+            @foreach (var u in Model.Users)
+            {
+                <div class="thread-row" style="align-items:center;">
+                    <a asp-controller="Profile" asp-action="View" asp-route-name="@u.Name"><strong>@u.Name</strong></a>
+                    <span style="flex:1"></span>
+                    <span class="thread-meta">@u.PostCount posts</span>
+                </div>
+            }
+        </div>
+    }
+}

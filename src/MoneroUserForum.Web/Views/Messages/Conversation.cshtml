@@ -1,0 +1,57 @@
+@model ConversationViewModel
+@{
+    ViewData["Title"] = "Chat with " + Model.PartnerName;
+    ViewData["ActivePartner"] = Model.PartnerName;
+    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+}
+
+<div class="dm-layout">
+    <div class="dm-leftcol">
+        @await Html.PartialAsync("_ConversationList", Model.Conversations)
+        @await Component.InvokeAsync("Sponsors", new { side = true })
+    </div>
+
+    <section class="dm-threadcol">
+        <div class="panel dm-thread-head">
+            <img class="avatar" src="@(Model.PartnerAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+            <div class="dm-thread-who">
+                <a class="dm-thread-name" asp-controller="Profile" asp-action="View" asp-route-name="@Model.PartnerName">@Model.PartnerName</a>
+                <div class="thread-meta">@Model.Messages.Count message@(Model.Messages.Count == 1 ? "" : "s")</div>
+            </div>
+            <span style="flex:1"></span>
+            <a class="btn btn-sm dm-head-inbox" asp-action="Index">All Conversations</a>
+            <a class="btn btn-sm" asp-controller="Profile" asp-action="View" asp-route-name="@Model.PartnerName">View Profile</a>
+        </div>
+
+        <div class="panel">
+            <div id="dm-log" class="chat-log" data-partner="@Model.PartnerName">
+                @await Html.PartialAsync("_DmList", Model.Messages)
+            </div>
+        </div>
+
+        <div class="panel">
+            @if (Model.PartnerGone)
+            {
+                <p class="muted">This member deleted their account.</p>
+            }
+            else if (!canPost)
+            {
+                <p class="muted">Your account must be approved before you can send messages.</p>
+            }
+            else
+            {
+                <form asp-action="Send" method="post">
+                    <input type="hidden" name="ToUsername" value="@Model.PartnerName" />
+                    <div class="form-group">
+                        <textarea name="Body" rows="3" required placeholder="Write a message…"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send</button>
+                </form>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/dm.js" asp-append-version="true"></script>
+}

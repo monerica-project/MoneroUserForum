@@ -1,0 +1,11 @@
+@{
+    ViewData["Title"] = "Error";
+    var code = ViewBag.Code ?? 500;
+}
+<div class="panel form-narrow" style="margin: 40px auto 0; text-align:center;">
+    <h1>@code</h1>
+    <p class="muted">
+        @(code == 404 ? "That page doesn't exist." : "Something went wrong.")
+    </p>
+    <a class="btn" asp-controller="Home" asp-action="Index">Back to the forum</a>
+</div>

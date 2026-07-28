@@ -1,0 +1,24 @@
+@model ThreadListViewModel
+@{
+    ViewData["Title"] = Model.Heading;
+    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+}
+<div class="panel">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+        <h1 style="margin:0;"><span class="chip chip-cat">@Model.Heading</span></h1>
+        <span style="flex:1"></span>
+        @if (canPost)
+        {
+            <a class="btn btn-primary" asp-controller="Thread" asp-action="Create" asp-route-category="@Model.Category">New thread</a>
+        }
+    </div>
+    @await Html.PartialAsync("_ThreadRows", Model.Threads)
+
+    @if (Model.Page > 1 || Model.HasMore)
+    {
+        <div style="display:flex;justify-content:space-between;margin-top:14px;">
+            <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+            <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+        </div>
+    }
+</div>

@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MoneroUserForum.Data/MoneroUserForum.Data.csproj" />
+    <Project Path="src/MoneroUserForum.Services/MoneroUserForum.Services.csproj" />
+    <Project Path="src/MoneroUserForum.Web/MoneroUserForum.Web.csproj" />
+  </Folder>
+</Solution>

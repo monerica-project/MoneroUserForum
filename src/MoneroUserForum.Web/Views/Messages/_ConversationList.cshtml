@@ -1,0 +1,45 @@
+@model IReadOnlyList<MoneroUserForum.Web.Models.Messages.ConversationSummary>
+@{
+    var activePartner = ViewData["ActivePartner"] as string;
+}
+<div class="panel dm-listcol">
+    <div class="dm-list-head">
+        <div class="dm-list-title">
+            <strong>Private Messages</strong>
+            <div class="thread-meta">@Model.Count conversation@(Model.Count == 1 ? "" : "s")</div>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="New">New Chat</a>
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <p class="muted" style="margin:0;">No conversations yet. Start one from a member's profile or with “New Chat”.</p>
+    }
+    else
+    {
+        <div class="dm-convo-scroll">
+            @foreach (var c in Model)
+            {
+                var active = string.Equals(c.PartnerName, activePartner, StringComparison.OrdinalIgnoreCase);
+                string roleLabel; string roleCss;
+                if (c.PartnerGone)      { roleLabel = "Gone";   roleCss = "role-gone"; }
+                else if (c.PartnerBanned) { roleLabel = "Banned"; roleCss = "role-banned"; }
+                else if (c.PartnerIsAdmin) { roleLabel = "Admin"; roleCss = "role-admin"; }
+                else                      { roleLabel = Describe(c.PartnerReputation); roleCss = "role-rep"; }
+
+                <a class="dm-convo @(active ? "active" : "")" asp-action="Conversation" asp-route-name="@c.PartnerName">
+                    <img class="avatar" src="@(c.PartnerAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+                    <div class="dm-convo-body">
+                        <div class="dm-convo-top">
+                            <span class="dm-convo-name">@(c.PartnerGone ? "[deleted]" : c.PartnerName)</span>
+                            <span class="dm-convo-role @roleCss">@roleLabel</span>
+                            <span class="dm-convo-time">@TimeAgo(c.LastAtUtc)</span>
+                        </div>
+                        <div class="dm-convo-snip">@c.LastSnippet</div>
+                    </div>
+                    @if (c.UnreadCount > 0) { <span class="nav-badge dm-convo-unread">@c.UnreadCount</span> }
+                </a>
+            }
+        </div>
+    }
+</div>

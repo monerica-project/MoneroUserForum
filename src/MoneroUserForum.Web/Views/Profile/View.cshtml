@@ -1,0 +1,76 @@
+@model ProfileViewModel
+@{
+    ViewData["Title"] = Model.DisplayName;
+    ViewData["OgType"] = "profile";
+    ViewData["Description"] = $"{Model.DisplayName} on the Monero User Forum — {Describe(Model.Reputation)}, {Model.PostCount} posts.";
+}
+
+<div class="panel">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+        <img class="avatar avatar-lg" src="@(Model.AvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+        <div style="flex:1 1 auto;min-width:0;">
+            <h1 style="margin:0;">@Model.DisplayName
+                @if (Model.IsBanned) { <span class="chip" style="color:#ff8a8a;border-color:rgba(255,82,82,.4);">banned</span> }
+            </h1>
+            <div class="thread-meta">
+                <span class="rep">@Describe(Model.Reputation)</span> · @Model.PostCount posts · joined @TimeAgo(Model.JoinedAtUtc)
+            </div>
+            @if (Model.IsSelf)
+            {
+                <div style="margin-top:10px;">
+                    <a class="btn btn-sm" asp-action="Edit">Edit profile</a>
+                    <a class="btn btn-sm" asp-controller="Account" asp-action="Settings">Account settings</a>
+                </div>
+            }
+            else if ((User.Identity?.IsAuthenticated ?? false) && !Model.IsBanned)
+            {
+                <div style="margin-top:10px;">
+                    <a class="btn btn-sm btn-primary" asp-controller="Messages" asp-action="New" asp-route-to="@Model.DisplayName">Message</a>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Signature))
+    {
+        <div class="post-sig" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">@Model.Signature</div>
+    }
+</div>
+
+@if (HasAnyLinks())
+{
+    <div class="panel">
+        <h2 class="panel-title">Links &amp; contact</h2>
+        <ul class="muted" style="margin:0;padding-left:18px;line-height:2;">
+            @{ var wsafe = SafeHttpUrl(Model.WebsiteUrl); var tsafe = SafeHttpUrl(Model.TwitterUrl); }
+            @if (wsafe != null) { <li>Website: <a href="@wsafe" target="_blank" rel="nofollow noopener">@Model.WebsiteUrl</a></li> }
+            else if (!string.IsNullOrWhiteSpace(Model.WebsiteUrl)) { <li>Website: @Model.WebsiteUrl</li> }
+            @if (tsafe != null) { <li>X / Twitter: <a href="@tsafe" target="_blank" rel="nofollow noopener">@Model.TwitterUrl</a></li> }
+            else if (!string.IsNullOrWhiteSpace(Model.TwitterUrl)) { <li>X / Twitter: @Model.TwitterUrl</li> }
+            @if (!string.IsNullOrWhiteSpace(Model.SimpleXAddress)) { <li>SimpleX: <span style="word-break:break-all;">@Model.SimpleXAddress</span></li> }
+            @if (!string.IsNullOrWhiteSpace(Model.TelegramHandle)) { <li>Telegram: @Model.TelegramHandle</li> }
+        </ul>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.MoneroDonationAddress))
+{
+    <div class="panel">
+        <h2 class="panel-title">Monero donation address</h2>
+        <code style="word-break:break-all;display:block;background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--border);">@Model.MoneroDonationAddress</code>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.PgpPublicKey))
+{
+    <div class="panel">
+        <h2 class="panel-title">PGP public key</h2>
+        <pre style="white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);font-size:12px;">@Model.PgpPublicKey</pre>
+    </div>
+}
+
+@functions {
+    bool HasAnyLinks() =>
+        !string.IsNullOrWhiteSpace(Model.WebsiteUrl) || !string.IsNullOrWhiteSpace(Model.TwitterUrl)
+        || !string.IsNullOrWhiteSpace(Model.SimpleXAddress) || !string.IsNullOrWhiteSpace(Model.TelegramHandle);
+}

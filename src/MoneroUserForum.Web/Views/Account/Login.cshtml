@@ -1,0 +1,30 @@
+@model MoneroUserForum.Web.Models.Account.LoginViewModel
+@{ ViewData["Title"] = "Log in"; }
+
+<div class="panel form-narrow" style="margin: 30px auto 0;">
+    <h1>Log in</h1>
+    <form asp-action="Login" method="post">
+        <input type="hidden" asp-for="ReturnUrl" />
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="form-group">
+            <label asp-for="Username"></label>
+            <input asp-for="Username" autocomplete="username" autofocus />
+            <span asp-validation-for="Username" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label asp-for="Password"></label>
+            <input asp-for="Password" autocomplete="current-password" />
+            <span asp-validation-for="Password" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--fg)">
+                <input asp-for="RememberMe" type="checkbox" style="width:auto" /> Keep me signed in
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Log in</button>
+    </form>
+    <p class="muted" style="margin-top:14px;">
+        <a asp-action="ForgotPassword">Forgot password?</a> &nbsp;·&nbsp;
+        New here? <a asp-action="Register">Register</a>.
+    </p>
+</div>

@@ -1,0 +1,41 @@
+@model List<NotificationRow>
+@{ ViewData["Title"] = "Notifications"; }
+
+<div class="panel">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <h1 style="margin:0;">Notifications</h1>
+        <span style="flex:1"></span>
+        @if (Model.Any(n => !n.IsRead))
+        {
+            <form asp-action="MarkAllRead" method="post">
+                <button type="submit" class="btn btn-sm">Mark all read</button>
+            </form>
+        }
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <p class="muted">No notifications yet. You'll be alerted when someone replies to you, @@mentions you, or posts in a thread you follow.</p>
+    }
+    else
+    {
+        foreach (var n in Model)
+        {
+            <div class="thread-row" style="align-items:center;@(n.IsRead ? "" : "background:rgba(255,102,0,.06);")">
+                <div style="flex:1 1 auto;min-width:0;">
+                    <a asp-action="Open" asp-route-id="@n.Id">
+                        <strong>@(n.ActorName ?? "Someone")</strong> @Describe(n.Type)
+                        @if (!string.IsNullOrEmpty(n.ThreadTitle)) { <text>— @n.ThreadTitle</text> }
+                    </a>
+                    <div class="thread-meta">@TimeAgo(n.CreatedAtUtc)</div>
+                </div>
+                @if (n.Type == MoneroUserForum.Data.Enums.NotificationType.ThreadActivity && n.ThreadId is int tid)
+                {
+                    <form asp-action="Unsubscribe" asp-route-threadId="@tid" method="post">
+                        <button type="submit" class="btn btn-sm" title="Stop notifications for this thread">Unsubscribe</button>
+                    </form>
+                }
+            </div>
+        }
+    }
+</div>

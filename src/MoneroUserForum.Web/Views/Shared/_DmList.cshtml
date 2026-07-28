@@ -1,0 +1,17 @@
+@model List<MoneroUserForum.Web.Models.Messages.MessageItem>
+@if (Model.Count == 0)
+{
+    <p class="muted">No messages yet — say hello.</p>
+}
+else
+{
+    <div class="dm-list">
+        @foreach (var m in Model)
+        {
+            <div class="dm-bubble @(m.FromMe ? "me" : "them")">
+                <div class="dm-time">@TimeAgo(m.CreatedAtUtc)</div>
+                <div class="dm-text">@m.Body</div>
+            </div>
+        }
+    </div>
+}

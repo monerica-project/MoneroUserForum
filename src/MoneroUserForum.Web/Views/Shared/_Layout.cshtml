@@ -1,0 +1,136 @@
+@using System.Security.Claims
+@{
+    var authed = User.Identity?.IsAuthenticated ?? false;
+    var display = User.FindFirst("displayname")?.Value ?? User.Identity?.Name;
+    var isAdmin = User.IsInRole("Admin");
+
+    // ---- SEO / social ----
+    var pageTitle = ViewData["Title"] as string;
+    var fullTitle = string.IsNullOrEmpty(pageTitle) ? "Monero User Forum" : pageTitle + " · Monero User Forum";
+    var metaDesc = ViewData["Description"] as string
+        ?? "A forum for Monero users to communicate — price talk, technical help, and general discussion. No email required, works over Tor.";
+    var canonical = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
+    var ogImage = $"{Context.Request.Scheme}://{Context.Request.Host}/img/monerouserforum.png";
+    var ctrl = (ViewContext.RouteData.Values["controller"] as string ?? string.Empty).ToLowerInvariant();
+    var privateArea = ctrl is "account" or "admin" or "messages" or "notifications";
+    var ogType = ViewData["OgType"] as string ?? "website";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@fullTitle</title>
+    <meta name="description" content="@metaDesc" />
+    <link rel="canonical" href="@canonical" />
+    <meta name="robots" content="@(privateArea ? "noindex,nofollow" : "index,follow")" />
+    <meta name="theme-color" content="#ff6600" />
+
+    <meta property="og:type" content="@ogType" />
+    <meta property="og:site_name" content="Monero User Forum" />
+    <meta property="og:title" content="@fullTitle" />
+    <meta property="og:description" content="@metaDesc" />
+    <meta property="og:url" content="@canonical" />
+    <meta property="og:image" content="@ogImage" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="@fullTitle" />
+    <meta name="twitter:description" content="@metaDesc" />
+    <meta name="twitter:image" content="@ogImage" />
+    <link rel="icon" type="image/png" href="~/img/muf-mark.png" />
+    <link rel="apple-touch-icon" href="~/img/muf-mark.png" />
+    <link rel="stylesheet" href="~/css/muf.css" asp-append-version="true" />
+    <script src="~/js/editor.js" asp-append-version="true" defer></script>
+    <script src="~/js/search-suggest.js" asp-append-version="true" defer></script>
+    <script src="~/js/confirm.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <header class="site-header">
+        <nav class="nav">
+            <a class="brand" asp-controller="Home" asp-action="Index">
+                <img class="logo-img" src="~/img/muf-mark.png" alt="Monero User Forum" /> <span class="accent">Monero</span>&nbsp;User&nbsp;Forum
+            </a>
+            <div class="nav-links">
+                <a asp-controller="Home" asp-action="Index">Recent</a>
+                <a asp-controller="Thread" asp-action="Categories">Categories</a>
+                <a asp-controller="Chat" asp-action="Index">Chat</a>
+            </div>
+            <div class="nav-right">
+            <form asp-controller="Search" asp-action="Index" method="get" class="nav-search" role="search">
+                <input type="search" name="q" value="@(ViewContext.RouteData.Values["controller"] as string == "Search" ? Context.Request.Query["q"].ToString() : "")" placeholder="Search…" aria-label="Search the forum" />
+            </form>
+            <div class="nav-links">
+                @if (authed)
+                {
+                    <a class="nav-icon" asp-controller="Messages" asp-action="Index" title="Messages" aria-label="Messages">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>@await Component.InvokeAsync("MessagesBadge")</a>
+                    <a class="nav-icon" asp-controller="Notifications" asp-action="Index" title="Notifications" aria-label="Notifications">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>@await Component.InvokeAsync("NotificationBadge")</a>
+                    @if (isAdmin)
+                    {
+                        <a asp-controller="Admin" asp-action="Index">Admin</a>
+                        <a class="nav-icon" asp-controller="Admin" asp-action="Reports" title="Reported posts" aria-label="Reported posts">
+                            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>@await Component.InvokeAsync("ReportsBadge")</a>
+                    }
+                    <a class="nav-links" style="color:var(--fg-muted);font-weight:700;" asp-controller="Profile" asp-action="Me">@display</a>
+                    <a class="nav-icon" asp-controller="Account" asp-action="Settings" title="Settings" aria-label="Settings">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></a>
+                }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login">Log in</a>
+                    <a class="btn btn-primary btn-sm" asp-controller="Account" asp-action="Register">Register</a>
+                }
+            </div>
+            @if (authed)
+            {
+                <form class="nav-logout" asp-controller="Account" asp-action="Logout" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-sm">Log out</button>
+                </form>
+            }
+            </div><!-- /nav-right -->
+        </nav>
+    </header>
+
+    <div class="container">
+        @if (TempData["Message"] is string okMsg)
+        {
+            <div class="alert alert-success">@okMsg</div>
+        }
+        @if (TempData["Error"] is string errMsg)
+        {
+            <div class="alert alert-error">@errMsg</div>
+        }
+        @if (authed && !User.HasClaim("approved", "true") && !User.HasClaim("banned", "true"))
+        {
+            <div class="alert alert-info">Your account is awaiting admin approval. You can read the forum now; posting unlocks once you're approved.</div>
+        }
+        @if (User.HasClaim("banned", "true"))
+        {
+            <div class="alert alert-error">Your account is banned. Your posts are hidden from other members.</div>
+        }
+
+        <main role="main">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="inner">
+            <span class="nav-links">
+                <a asp-controller="Home" asp-action="About">About</a>
+                <a asp-controller="Sponsors" asp-action="Index">Sponsors</a>
+                <a asp-controller="Home" asp-action="Network">Network</a>
+            </span>
+            <span class="nav-spacer"></span>
+            <span class="dim">In the <a asp-controller="Home" asp-action="Network">Monerica Network</a></span>
+        </div>
+    </footer>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

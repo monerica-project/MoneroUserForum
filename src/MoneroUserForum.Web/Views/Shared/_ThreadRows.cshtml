@@ -1,0 +1,44 @@
+@model IReadOnlyList<ThreadListItem>
+
+@if (Model.Count == 0)
+{
+    <p class="muted" style="padding:16px 0;">No threads yet. Be the first to start a discussion.</p>
+}
+else
+{
+    foreach (var t in Model)
+    {
+        <div class="thread-row">
+            <div style="flex:1 1 auto;min-width:0;">
+                <div class="thread-title">
+                    @if (t.IsPinned)
+                    {
+                        <span class="chip" style="margin-right:6px;">Pinned</span>
+                    }
+                    <a asp-controller="Thread" asp-action="View" asp-route-slug="@t.Slug">@t.Title</a>
+                </div>
+                <div class="thread-meta">
+                    <span class="chip chip-cat">@Describe(t.Category)</span>
+                    &nbsp;by @(t.AuthorBanned ? "[banned]" : t.AuthorName) · started @TimeAgo(t.CreatedAtUtc)
+                </div>
+            </div>
+            <div style="flex:0 0 auto;text-align:right;">
+                <div class="thread-meta"><b style="color:var(--fg)">@t.ReplyCount</b> repl@(t.ReplyCount == 1 ? "y" : "ies") · <b style="color:var(--fg)">@t.UniqueViews</b> view@(t.UniqueViews == 1 ? "" : "s")</div>
+                <div class="thread-meta thread-lastby">
+                    last by
+                    @if (string.IsNullOrEmpty(t.LastPosterName))
+                    {
+                        <text>—</text>
+                    }
+                    else
+                    {
+                        <img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />@t.LastPosterName
+                    }
+                    · @TimeAgo(t.LastPostAtUtc)
+                </div>
+                @{ var lastPage = Math.Max(1, (int)Math.Ceiling(t.PostCount / 20.0)); }
+                <a class="btn btn-sm" style="margin-top:5px;" href="/thread/@t.Slug?page=@lastPage#post-@t.LastPostId">Last reply →</a>
+            </div>
+        </div>
+    }
+}

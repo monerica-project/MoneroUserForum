@@ -1,0 +1,34 @@
+@model AdminDashboardViewModel
+@{ ViewData["Title"] = "Admin"; }
+<h1>Admin</h1>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px;">
+    <a class="panel" style="margin:0;text-align:center;" asp-action="Approvals">
+        <div style="font-size:30px;font-weight:800;color:var(--mono-orange);">@Model.PendingCount</div>
+        <div class="muted">Pending approval</div>
+    </a>
+    <a class="panel" style="margin:0;text-align:center;" asp-action="Reports">
+        <div style="font-size:30px;font-weight:800;color:@(Model.ReportsPending > 0 ? "#ff8a8a" : "inherit");">@Model.ReportsPending</div>
+        <div class="muted">Reported posts</div>
+    </a>
+    <a class="panel" style="margin:0;text-align:center;" asp-action="Members">
+        <div style="font-size:30px;font-weight:800;">@Model.MemberCount</div>
+        <div class="muted">Members</div>
+    </a>
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;">@Model.BannedCount</div>
+        <div class="muted">Banned</div>
+    </div>
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;">@Model.ThreadCount</div>
+        <div class="muted">Threads</div>
+    </div>
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;">@Model.PostCount</div>
+        <div class="muted">Posts</div>
+    </div>
+</div>
+<div class="panel">
+    <a class="btn btn-primary" asp-action="Approvals">Review @Model.PendingCount pending</a>
+    <a class="btn" asp-action="Reports">Reported posts (@Model.ReportsPending)</a>
+    <a class="btn" asp-action="Members">Manage members</a>
+</div>

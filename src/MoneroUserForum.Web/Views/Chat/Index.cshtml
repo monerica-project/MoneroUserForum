@@ -1,0 +1,29 @@
+@model ChatViewModel
+@{ ViewData["Title"] = "Chat"; }
+
+<div class="panel">
+    <h1 style="margin-top:0;">Chatroom</h1>
+    <p class="muted">A live room for everyone. New messages refresh automatically.</p>
+
+    <div id="chat-log" class="chat-log">
+        @await Html.PartialAsync("_ChatLog", Model.Messages)
+    </div>
+
+    @if (Model.CanPost)
+    {
+        <form id="chat-form" asp-action="Post" method="post" style="margin-top:12px;display:flex;gap:8px;">
+            <input id="chat-input" type="text" name="body" maxlength="2000" required autocomplete="off" autofocus placeholder="Type a message…" />
+            <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+    }
+    else
+    {
+        <p class="muted" style="margin-top:12px;">Your account must be approved before you can chat.</p>
+    }
+    <noscript><p class="md-hint">JavaScript is off — reload the page to see new messages.</p></noscript>
+</div>
+
+@section Scripts {
+    <script src="~/lib/signalr/signalr.min.js" asp-append-version="true"></script>
+    <script src="~/js/chat.js" asp-append-version="true"></script>
+}
