@@ -337,6 +337,38 @@ namespace MoneroUserForum.Data.Migrations
                     b.ToTable("PostImages");
                 });
 
+            modelBuilder.Entity("MoneroUserForum.Data.Entities.PostThank", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PostAuthorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostAuthorId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("PostThanks");
+                });
+
             modelBuilder.Entity("MoneroUserForum.Data.Entities.PrivateMessage", b =>
                 {
                     b.Property<int>("Id")
@@ -519,6 +551,9 @@ namespace MoneroUserForum.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("AvatarPath")
                         .HasColumnType("text");
 
@@ -555,6 +590,24 @@ namespace MoneroUserForum.Data.Migrations
 
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Link1Label")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Link1Url")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Link2Label")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Link2Url")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Link3Label")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Link3Url")
+                        .HasColumnType("text");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -767,6 +820,33 @@ namespace MoneroUserForum.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("MoneroUserForum.Data.Entities.PostThank", b =>
+                {
+                    b.HasOne("MoneroUserForum.Data.Identity.AppUser", "PostAuthor")
+                        .WithMany()
+                        .HasForeignKey("PostAuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MoneroUserForum.Data.Entities.Post", "Post")
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneroUserForum.Data.Identity.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+
+                    b.Navigation("PostAuthor");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MoneroUserForum.Data.Entities.PrivateMessage", b =>

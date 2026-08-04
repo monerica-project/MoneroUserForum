@@ -20,6 +20,11 @@ public class AppUser : IdentityUser<int>
     /// <summary>Admin has approved this account; until then it cannot post.</summary>
     public bool IsApproved { get; set; }
 
+    /// <summary>When an admin approved the account (UTC). Drives time-gated perks like
+    /// image posting (unlocks 1 month after approval). Null for not-yet-approved accounts;
+    /// backfilled to CreatedAtUtc for accounts approved before this field existed.</summary>
+    public DateTime? ApprovedAtUtc { get; set; }
+
     /// <summary>Banned members stay visible but every post they made is blacked out.</summary>
     public bool IsBanned { get; set; }
 
@@ -49,8 +54,17 @@ public class AppUser : IdentityUser<int>
     /// <summary>Member's PGP public key (shown on their profile).</summary>
     public string? PgpPublicKey { get; set; }
 
-    /// <summary>Monero donation address shown on the profile (no faucet/tipping on-site).</summary>
+    /// <summary>Monero donation address shown on the profile (rendered with a tip QR code).</summary>
     public string? MoneroDonationAddress { get; set; }
+
+    // Three free-form profile links (e.g. personal site, a social profile, anything else).
+    // Each is an optional label + URL; only rendered when the URL is a valid http/https link.
+    public string? Link1Label { get; set; }
+    public string? Link1Url { get; set; }
+    public string? Link2Label { get; set; }
+    public string? Link2Url { get; set; }
+    public string? Link3Label { get; set; }
+    public string? Link3Url { get; set; }
 
     // ---- Navigation -----------------------------------------------------
 

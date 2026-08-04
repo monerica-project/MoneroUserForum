@@ -151,7 +151,9 @@ textarea { min-height: 120px; resize: vertical; }
 /* ---- Thread / post lists ---- */
 .thread-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .thread-row:last-child { border-bottom: 0; }
-.thread-title { font-weight: 700; font-size: 15px; }
+.thread-row-main { flex: 1 1 auto; min-width: 0; }
+.thread-row-stats { flex: 0 0 auto; text-align: right; }
+.thread-title { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .thread-meta { font-size: 12px; color: var(--fg-dim); }
 
 .post { border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 14px; overflow: hidden; }
@@ -201,6 +203,9 @@ textarea { min-height: 120px; resize: vertical; }
 .post-md pre code { background: none; padding: 0; }
 .post-md blockquote { margin: 0 0 10px; padding: 6px 12px; border-left: 3px solid var(--border-2); color: var(--fg-muted); }
 
+/* Live post preview (toggled from the editor toolbar) */
+.md-preview { margin: 8px 0 0; padding: 12px 14px; background: var(--bg); border: 1px dashed var(--mono-orange); border-radius: var(--radius); }
+
 /* Markdown editor toolbar (progressive enhancement) */
 .md-toolbar { display: flex; gap: 5px; margin-bottom: 6px; flex-wrap: wrap; }
 .md-toolbar button {
@@ -244,7 +249,11 @@ textarea { min-height: 120px; resize: vertical; }
 .post-author .rep { display: block; margin-top: 3px; }
 .post-author .pcount { display: block; margin-top: 6px; font-size: 12px; color: var(--fg-muted); }
 .post-author .pcount b { color: var(--fg); }
+.post-author .tcount { display: block; margin-top: 2px; font-size: 12px; color: var(--fg-muted); }
+.post-author .tcount b { color: var(--mono-orange-2, var(--fg)); }
 .post-main { flex: 1 1 auto; min-width: 0; }
+.thank-btn.thanked { border-color: var(--mono-orange-2, currentColor); color: var(--mono-orange-2, inherit); }
+.thank-static { font-size: 12px; }
 .post-main .post-meta { padding: 10px 14px 0; color: var(--fg-dim); font-size: 12px; }
 .post-actions { display: flex; gap: 8px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border); background: var(--bg-2); }
 @media (max-width: 560px) {
@@ -254,7 +263,7 @@ textarea { min-height: 120px; resize: vertical; }
     display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 14px;
   }
   .post-author .avatar { width: 40px; height: 40px; }
-  .post-author .who, .post-author .rep, .post-author .pcount { margin: 0; }
+  .post-author .who, .post-author .rep, .post-author .pcount, .post-author .tcount { margin: 0; }
 }
 
 /* ---- Chat ---- */
@@ -268,6 +277,7 @@ textarea { min-height: 120px; resize: vertical; }
 .chat-log::-webkit-scrollbar-thumb { background: var(--mono-orange); border-radius: 6px; border: 2px solid #000; }
 .chat-log::-webkit-scrollbar-thumb:hover { background: var(--mono-orange-2); }
 .chat-msg { font-size: 14px; }
+#chat-input { flex: 1 1 auto; min-width: 0; }
 
 /* Direct-message bubbles — shrink to fit the message, small time top-left */
 .dm-list { display: flex; flex-direction: column; gap: 6px; }
@@ -344,3 +354,58 @@ textarea { min-height: 120px; resize: vertical; }
   .nav { gap: 10px; }
   .nav-links a { padding: 6px 8px; }
 }
+
+/* ===== Mobile polish (phones) ===== */
+@media (max-width: 640px) {
+  /* Reclaim the wasted side space */
+  .container { padding: 12px 10px 24px; }
+  .panel { padding: 12px; }
+
+  /* Thread list -> full-width, equally spaced cards (title on top, stats below) */
+  .thread-row {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-3);
+  }
+  .thread-row:last-child { border-bottom: 1px solid var(--border); margin-bottom: 0; }
+  .thread-row-main { width: 100%; }
+  .thread-title { font-size: 16px; }
+  .thread-row-stats {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .thread-row-stats .btn { margin-left: auto; margin-top: 0 !important; }
+
+  /* Chatroom -> app-like: header on top, log fills the screen, input pinned below */
+  .chat-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 92px);
+    margin-bottom: 0;
+  }
+  .chat-page > h1 { font-size: 19px; margin: 0 0 6px; flex: 0 0 auto; }
+  .chat-page > p.muted { display: none; }
+  .chat-page .chat-log {
+    flex: 1 1 auto;
+    min-height: 0;      /* let it shrink+scroll inside the flex column */
+    max-height: none;
+  }
+  .chat-page #chat-form { flex: 0 0 auto; margin-top: 8px; }
+  #chat-input { font-size: 16px; }  /* >=16px stops iOS zoom-on-focus */
+}
+
+/* ---- Account "what unlocks when" ---- */
+.unlocks-table { width: 100%; border-collapse: collapse; }
+.unlocks-table th, .unlocks-table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.unlocks-table thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); }
+.unlocks-table td:first-child { width: 26px; font-size: 17px; }
+.unlocks-table .dim { font-size: 12px; }

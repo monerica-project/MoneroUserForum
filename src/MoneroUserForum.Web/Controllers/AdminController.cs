@@ -116,6 +116,7 @@ public class AdminController : Controller
         if (user is not null)
         {
             user.IsApproved = true;
+            user.ApprovedAtUtc ??= DateTime.UtcNow; // starts the clock on time-gated perks; keep the original on re-approve
             user.UpdatedAtUtc = DateTime.UtcNow;
             await this.users.UpdateAsync(user); // claims refresh on their next request (no sign-out)
             this.TempData["Message"] = $"Approved {user.DisplayName}.";

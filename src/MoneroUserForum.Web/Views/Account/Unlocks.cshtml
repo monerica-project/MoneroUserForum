@@ -1,0 +1,95 @@
+@using MoneroUserForum.Data.Enums
+@using MoneroUserForum.Services.Reputation
+@model MoneroUserForum.Web.Models.Account.MemberUnlocksViewModel
+@{
+    ViewData["Title"] = "What unlocks when";
+    var ageDays = Model.AccountAgeDays;
+
+    // Small helpers for the rows.
+    Func<bool, string> icon = ok => ok ? "✅" : "🔒";
+    Func<DateTime, string> onDate = d => d.ToString("MMM d, yyyy");
+    Func<DateTime, string> inDays = d =>
+    {
+        var n = (int)Math.Ceiling((d - Model.NowUtc).TotalDays);
+        return n <= 0 ? "any moment now" : n == 1 ? "in about a day" : $"in {n} days";
+    };
+}
+
+<h1>What unlocks when</h1>
+<p class="muted">Some features open up automatically as your account gets older and you take part. Here's where you stand.</p>
+
+@if (!Model.IsApproved)
+{
+    <div class="alert alert-info">Your account is <strong>awaiting admin approval</strong>. Almost everything below unlocks once you're approved — the time-based perks start counting from that moment.</div>
+}
+
+<div class="panel">
+    <table class="unlocks-table">
+        <thead>
+            <tr><th></th><th>Feature</th><th>Requirement</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+            @{
+                var canPost = Model.IsApproved;
+            }
+            <tr>
+                <td>@icon(canPost)</td>
+                <td><strong>Post &amp; reply</strong><div class="dim">Start threads and reply to others.</div></td>
+                <td>Admin approval</td>
+                <td>@(canPost ? "Unlocked" : "After approval")</td>
+            </tr>
+            <tr>
+                <td>@icon(canPost)</td>
+                <td><strong>Thank posts</strong><div class="dim">Give ☆ Thanks; receive them on your posts.</div></td>
+                <td>Admin approval</td>
+                <td>@(canPost ? "Unlocked" : "After approval")</td>
+            </tr>
+            <tr>
+                <td>@icon(Model.CanPostImages)</td>
+                <td><strong>Attach images to posts</strong><div class="dim">Up to 4 images per post (JPG/PNG/WEBP/GIF).</div></td>
+                <td>@MemberPerks.ImagePostingUnlockMonths month after approval</td>
+                <td>
+                    @if (Model.CanPostImages)
+                    {
+                        <text>Unlocked</text>
+                    }
+                    else if (Model.ImageUnlockUtc is DateTime u)
+                    {
+                        <text>Unlocks @inDays(u) <span class="dim">(@onDate(u))</span></text>
+                    }
+                    else
+                    {
+                        <text>After approval</text>
+                    }
+                </td>
+            </tr>
+            @{
+                var isMember = Model.Reputation >= ReputationLevel.Member;
+                var isVeteran = Model.Reputation >= ReputationLevel.Veteran;
+            }
+            <tr>
+                <td>@icon(isMember)</td>
+                <td><strong>@Describe(ReputationLevel.Member) status</strong><div class="dim">A step up from new accounts.</div></td>
+                <td>@ReputationCalculator.MemberMinAgeDays days old &amp; @ReputationCalculator.MemberMinPosts posts</td>
+                <td>
+                    @if (isMember) { <text>Reached</text> }
+                    else { <text><span class="dim">@((int)ageDays)/@ReputationCalculator.MemberMinAgeDays days · @Model.PostCount/@ReputationCalculator.MemberMinPosts posts</span></text> }
+                </td>
+            </tr>
+            <tr>
+                <td>@icon(isVeteran)</td>
+                <td><strong>@Describe(ReputationLevel.Veteran) status</strong><div class="dim">Established, long-standing member.</div></td>
+                <td>@ReputationCalculator.VeteranMinAgeDays days old &amp; @ReputationCalculator.VeteranMinPosts posts</td>
+                <td>
+                    @if (isVeteran) { <text>Reached</text> }
+                    else { <text><span class="dim">@((int)ageDays)/@ReputationCalculator.VeteranMinAgeDays days · @Model.PostCount/@ReputationCalculator.VeteranMinPosts posts</span></text> }
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<p class="muted" style="font-size:13px;">
+    Your account: joined @onDate(Model.CreatedAtUtc)@(Model.ApprovedAtUtc is DateTime a ? $", approved {onDate(a)}" : "") ·
+    current level <span class="rep">@Describe(Model.Reputation)</span> · @Model.PostCount posts.
+</p>

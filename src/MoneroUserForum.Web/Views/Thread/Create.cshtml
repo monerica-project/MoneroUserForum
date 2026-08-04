@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "New thread"; }
 <div class="panel" style="max-width:720px;">
     <h1>Start a new thread</h1>
-    <form asp-action="Create" method="post">
+    <form asp-action="Create" method="post" enctype="multipart/form-data">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
         @if (ViewBag.ExistingSlug is string existingSlug)
         {
@@ -30,6 +30,18 @@
             <textarea asp-for="Body" rows="10" class="md-editor" placeholder="Write your post… @@mention someone to notify them. Highlight text and click 🔗 to add a link."></textarea>
             <span asp-validation-for="Body" class="text-danger"></span>
         </div>
+        @if (ViewBag.CanPostImages is true)
+        {
+            <div class="form-group">
+                <label class="dim" style="font-size:13px;">📷 Attach images (up to 4 · JPG/PNG/WEBP/GIF · 5 MB each)</label>
+                <input type="file" name="images" accept="image/png,image/jpeg,image/webp,image/gif" multiple />
+            </div>
+        }
+        else if (ViewBag.ImageUnlockUtc is DateTime unlock)
+        {
+            var days = (int)Math.Ceiling((unlock - DateTime.UtcNow).TotalDays);
+            <p class="dim" style="font-size:12px;">📷 Image posting unlocks @(days <= 1 ? "in under a day" : $"in {days} days") (1 month after approval). <a href="/account/unlocks">See what unlocks when →</a></p>
+        }
         <button type="submit" class="btn btn-primary">Post thread</button>
     </form>
 </div>

@@ -9,7 +9,7 @@ else
     foreach (var t in Model)
     {
         <div class="thread-row">
-            <div style="flex:1 1 auto;min-width:0;">
+            <div class="thread-row-main">
                 <div class="thread-title">
                     @if (t.IsPinned)
                     {
@@ -22,7 +22,7 @@ else
                     &nbsp;by @(t.AuthorBanned ? "[banned]" : t.AuthorName) · started @TimeAgo(t.CreatedAtUtc)
                 </div>
             </div>
-            <div style="flex:0 0 auto;text-align:right;">
+            <div class="thread-row-stats">
                 <div class="thread-meta"><b style="color:var(--fg)">@t.ReplyCount</b> repl@(t.ReplyCount == 1 ? "y" : "ies") · <b style="color:var(--fg)">@t.UniqueViews</b> view@(t.UniqueViews == 1 ? "" : "s")</div>
                 <div class="thread-meta thread-lastby">
                     last by

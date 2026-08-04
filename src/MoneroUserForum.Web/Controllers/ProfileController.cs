@@ -8,6 +8,7 @@ using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Services.Storage;
 using MoneroUserForum.Web.Auth;
 using MoneroUserForum.Web.Models.Profile;
+using MoneroUserForum.Web.Support;
 
 namespace MoneroUserForum.Web.Controllers;
 
@@ -71,6 +72,13 @@ public class ProfileController : Controller
             PgpPublicKey = user.PgpPublicKey,
             Signature = user.Signature,
             MoneroDonationAddress = user.MoneroDonationAddress,
+            MoneroQrDataUri = QrCodeHelper.MoneroTipDataUri(user.MoneroDonationAddress),
+            Link1Label = user.Link1Label,
+            Link1Url = user.Link1Url,
+            Link2Label = user.Link2Label,
+            Link2Url = user.Link2Url,
+            Link3Label = user.Link3Label,
+            Link3Url = user.Link3Url,
         });
     }
 
@@ -128,7 +136,9 @@ public class ProfileController : Controller
 
             var old = user.AvatarPath;
             await using var stream = avatar.OpenReadStream();
-            user.AvatarPath = await this.images.SaveAsync(stream, "avatars", ext);
+            // Foldered per user under profile/ so each member's avatars stay grouped; the
+            // filename itself is a GUID (see BunnyImageStorage) so uploads never collide.
+            user.AvatarPath = await this.images.SaveAsync(stream, $"profile/{user.Id}", ext);
             if (!string.IsNullOrEmpty(old))
             {
                 await this.images.DeleteAsync(old);
@@ -142,6 +152,12 @@ public class ProfileController : Controller
         user.TelegramHandle = Trim(model.TelegramHandle);
         user.PgpPublicKey = Trim(model.PgpPublicKey);
         user.MoneroDonationAddress = Trim(model.MoneroDonationAddress);
+        user.Link1Label = Trim(model.Link1Label);
+        user.Link1Url = Trim(model.Link1Url);
+        user.Link2Label = Trim(model.Link2Label);
+        user.Link2Url = Trim(model.Link2Url);
+        user.Link3Label = Trim(model.Link3Label);
+        user.Link3Url = Trim(model.Link3Url);
         user.UpdatedAtUtc = DateTime.UtcNow;
 
         await this.users.UpdateAsync(user);
@@ -160,6 +176,12 @@ public class ProfileController : Controller
         TelegramHandle = user.TelegramHandle,
         PgpPublicKey = user.PgpPublicKey,
         MoneroDonationAddress = user.MoneroDonationAddress,
+        Link1Label = user.Link1Label,
+        Link1Url = user.Link1Url,
+        Link2Label = user.Link2Label,
+        Link2Url = user.Link2Url,
+        Link3Label = user.Link3Label,
+        Link3Url = user.Link3Url,
         CurrentAvatarUrl = string.IsNullOrEmpty(user.AvatarPath) ? null : this.images.PublicUrl(user.AvatarPath),
     };
 }

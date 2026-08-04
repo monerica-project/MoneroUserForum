@@ -1,9 +1,20 @@
 @model ComposeViewModel
-@{ ViewData["Title"] = "New message"; }
+@{
+    ViewData["Title"] = "New message";
+    var dmBlocked = ViewData["DmBlocked"] as string;
+}
 <div class="thread-layout">
 <div class="thread-main">
 <div class="panel">
     <h1>New message</h1>
+@if (!string.IsNullOrEmpty(dmBlocked))
+{
+    <div class="notice" role="alert" style="padding:12px 14px;border:1px solid var(--mono-orange);border-radius:var(--radius);background:var(--bg);">
+        @dmBlocked
+    </div>
+}
+else
+{
     <form asp-action="Send" method="post">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
         <div class="form-group" style="position:relative;">
@@ -19,6 +30,7 @@
         </div>
         <button type="submit" class="btn btn-primary">Send</button>
     </form>
+}
 </div>
 </div>
 <aside class="thread-side">

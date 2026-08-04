@@ -54,6 +54,7 @@ public class DataSeeder
             UserName = normalized,
             DisplayName = username.Trim(),
             IsApproved = true,
+            ApprovedAtUtc = DateTime.UtcNow,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow,
         };

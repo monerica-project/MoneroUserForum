@@ -130,6 +130,7 @@ public class MessagesController : Controller
             // without going back to the inbox. Built after LoadConversationAsync
             // so this partner's unread count is already cleared to zero.
             Conversations = await this.BuildConversationsAsync(me),
+            DmBlocked = await this.DmBlockReasonAsync(),
         });
     }
 
@@ -170,8 +171,45 @@ public class MessagesController : Controller
     }
 
     [HttpGet("new")]
-    public IActionResult New(string? to)
-        => this.View("Compose", new ComposeViewModel { ToUsername = to ?? string.Empty });
+    public async Task<IActionResult> New(string? to)
+    {
+        this.ViewData["DmBlocked"] = await this.DmBlockReasonAsync();
+        return this.View("Compose", new ComposeViewModel { ToUsername = to ?? string.Empty });
+    }
+
+    /// <summary>
+    /// Minimum account age before a member may send direct messages. Combined with the
+    /// approval requirement below, this keeps brand-new / unvetted accounts from cold-DMing.
+    /// </summary>
+    private const int DmMinAccountAgeDays = 7;
+
+    /// <summary>
+    /// Returns a human-readable reason the current user may NOT send direct messages, or
+    /// null when they are allowed. To send a DM an account must be <b>approved</b> AND at
+    /// least <see cref="DmMinAccountAgeDays"/> days old.
+    /// </summary>
+    private async Task<string?> DmBlockReasonAsync()
+    {
+        var u = await this.users.GetUserAsync(this.User);
+        if (u is null)
+        {
+            return "Sign in to send direct messages.";
+        }
+
+        if (!u.IsApproved)
+        {
+            return "Your account must be approved before you can send direct messages.";
+        }
+
+        var eligibleAt = u.CreatedAtUtc.AddDays(DmMinAccountAgeDays);
+        if (DateTime.UtcNow < eligibleAt)
+        {
+            return $"New accounts can send direct messages once they are {DmMinAccountAgeDays} days old. " +
+                   $"You'll be able to send DMs on {eligibleAt:MMMM d, yyyy} (UTC).";
+        }
+
+        return null;
+    }
 
     /// <summary>Type-ahead member names for the "To" field on the compose form.</summary>
     [HttpGet("suggest-users")]
@@ -202,6 +240,16 @@ public class MessagesController : Controller
     {
         if (!this.ModelState.IsValid)
         {
+            return this.View("Compose", model);
+        }
+
+        // Gate: only approved accounts at least a week old may send DMs. This action also
+        // handles conversation replies, so it is the single choke point to enforce it.
+        var blocked = await this.DmBlockReasonAsync();
+        if (blocked is not null)
+        {
+            this.ViewData["DmBlocked"] = blocked;
+            this.ModelState.AddModelError(string.Empty, blocked);
             return this.View("Compose", model);
         }
 

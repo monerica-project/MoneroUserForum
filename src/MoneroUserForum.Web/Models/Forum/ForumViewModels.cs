@@ -49,6 +49,19 @@ public class PostView
     public string? AuthorSignature { get; set; }
     public ReputationLevel AuthorReputation { get; set; }
     public int AuthorPostCount { get; set; }
+
+    /// <summary>Total thanks this author has received across all their posts (shown under their avatar).</summary>
+    public int AuthorThanksReceived { get; set; }
+
+    /// <summary>Thanks this specific post has received.</summary>
+    public int ThankCount { get; set; }
+
+    /// <summary>The current viewer has already thanked this post.</summary>
+    public bool ViewerThanked { get; set; }
+
+    /// <summary>Viewer may thank this post (approved member, not their own post, live content).</summary>
+    public bool CanThank { get; set; }
+
     public bool AuthorBanned { get; set; }
     public bool AuthorDeleted { get; set; }
     public string Body { get; set; } = string.Empty;
@@ -94,6 +107,12 @@ public class ThreadDetailViewModel
     public int TotalPages { get; set; } = 1;
     public bool IsFollowing { get; set; }
     public ReplyViewModel Reply { get; set; } = new ();
+
+    /// <summary>Viewer may attach images to a reply (approved ≥1 month).</summary>
+    public bool CanPostImages { get; set; }
+
+    /// <summary>When image posting unlocks for the viewer (for the "unlocks in N days" hint); null once unlocked or if not applicable.</summary>
+    public DateTime? ImageUnlockUtc { get; set; }
 }
 
 public class CreateThreadViewModel

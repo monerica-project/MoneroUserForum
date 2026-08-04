@@ -3,8 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using MoneroUserForum.Data;
 using MoneroUserForum.Data.Identity;
 using MoneroUserForum.Services.Email;
+using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Web.Models.Account;
 
 namespace MoneroUserForum.Web.Controllers;
@@ -15,12 +18,41 @@ public class AccountController : Controller
     private readonly UserManager<AppUser> users;
     private readonly SignInManager<AppUser> signIn;
     private readonly IEmailSender email;
+    private readonly AppDbContext db;
 
-    public AccountController(UserManager<AppUser> users, SignInManager<AppUser> signIn, IEmailSender email)
+    public AccountController(UserManager<AppUser> users, SignInManager<AppUser> signIn, IEmailSender email, AppDbContext db)
     {
         this.users = users;
         this.signIn = signIn;
         this.email = email;
+        this.db = db;
+    }
+
+    /// <summary>Member-facing page: which features are unlocked and, for the time-gated ones, when.</summary>
+    [HttpGet("unlocks")]
+    [Authorize]
+    public async Task<IActionResult> Unlocks()
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        var now = DateTime.UtcNow;
+        var postCount = await this.db.Posts.CountAsync(p => p.AuthorId == user.Id && !p.IsDeleted);
+
+        return this.View(new MemberUnlocksViewModel
+        {
+            IsApproved = user.IsApproved,
+            ApprovedAtUtc = user.ApprovedAtUtc,
+            CreatedAtUtc = user.CreatedAtUtc,
+            NowUtc = now,
+            PostCount = postCount,
+            Reputation = ReputationCalculator.Compute(user.CreatedAtUtc, postCount, now),
+            CanPostImages = MemberPerks.CanPostImages(user.IsApproved, user.ApprovedAtUtc, now),
+            ImageUnlockUtc = MemberPerks.ImagePostingUnlockUtc(user.IsApproved, user.ApprovedAtUtc),
+        });
     }
 
     // ---- Register -------------------------------------------------------

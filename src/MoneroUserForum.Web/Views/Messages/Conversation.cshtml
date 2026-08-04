@@ -2,7 +2,6 @@
 @{
     ViewData["Title"] = "Chat with " + Model.PartnerName;
     ViewData["ActivePartner"] = Model.PartnerName;
-    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
 }
 
 <div class="dm-layout">
@@ -34,9 +33,9 @@
             {
                 <p class="muted">This member deleted their account.</p>
             }
-            else if (!canPost)
+            else if (Model.DmBlocked is not null)
             {
-                <p class="muted">Your account must be approved before you can send messages.</p>
+                <p class="muted">@Model.DmBlocked</p>
             }
             else
             {

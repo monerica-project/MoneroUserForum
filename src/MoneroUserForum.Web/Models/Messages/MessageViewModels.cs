@@ -34,6 +34,9 @@ public class ConversationViewModel
 
     /// <summary>Every thread the viewer is in — rendered as a navigation rail.</summary>
     public IReadOnlyList<ConversationSummary> Conversations { get; set; } = Array.Empty<ConversationSummary>();
+
+    /// <summary>Non-null when the current user may not send DMs (not approved, or too new); the reason to show.</summary>
+    public string? DmBlocked { get; set; }
 }
 
 public class ComposeViewModel

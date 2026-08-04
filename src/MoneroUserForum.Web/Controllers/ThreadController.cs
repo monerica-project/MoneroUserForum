@@ -12,6 +12,7 @@ using MoneroUserForum.Services.Storage;
 using MoneroUserForum.Services.Text;
 using MoneroUserForum.Web.Auth;
 using MoneroUserForum.Web.Models.Forum;
+using MoneroUserForum.Web.Support;
 
 namespace MoneroUserForum.Web.Controllers;
 
@@ -19,6 +20,12 @@ namespace MoneroUserForum.Web.Controllers;
 public class ThreadController : Controller
 {
     private const int PageSize = 20;
+
+    // Post image attachments (unlocked 1 month after approval — see MemberPerks).
+    private const int MaxPostImages = 4;
+    private const long MaxPostImageBytes = 5 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedImageExt =
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
 
     private readonly AppDbContext db;
     private readonly UserManager<AppUser> users;
@@ -174,6 +181,32 @@ public class ThreadController : Controller
 
         var now = DateTime.UtcNow;
         var meId = this.CurrentUserId();
+
+        // Thanks: batch per-post counts (for the button) and per-author totals
+        // (shown under the avatar) for this page in two grouped queries.
+        var pagePostIds = raw.Select(r => r.Id).ToList();
+        var thankCounts = await this.db.PostThanks
+            .Where(t => pagePostIds.Contains(t.PostId))
+            .GroupBy(t => t.PostId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+
+        var thanksReceived = await this.db.PostThanks
+            .Where(t => authorIds.Contains(t.PostAuthorId))
+            .GroupBy(t => t.PostAuthorId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+
+        // Which of this page's posts the current viewer has already thanked.
+        var myThanks = meId is int myId
+            ? (await this.db.PostThanks
+                .Where(t => t.UserId == myId && pagePostIds.Contains(t.PostId))
+                .Select(t => t.PostId)
+                .ToListAsync()).ToHashSet()
+            : new HashSet<int>();
+
+        // Viewer may thank if they're an approved, non-banned member.
+        var viewerCanThank = this.User.HasClaim("approved", "true") && !this.User.HasClaim("banned", "true");
         var posts = raw.Select(r => new PostView
         {
             Id = r.Id,
@@ -183,6 +216,10 @@ public class ThreadController : Controller
             AuthorSignature = r.Signature,
             AuthorReputation = ReputationCalculator.Compute(r.AuthorCreatedAtUtc, postCounts.GetValueOrDefault(r.AuthorId), now),
             AuthorPostCount = postCounts.GetValueOrDefault(r.AuthorId),
+            AuthorThanksReceived = thanksReceived.GetValueOrDefault(r.AuthorId),
+            ThankCount = thankCounts.GetValueOrDefault(r.Id),
+            ViewerThanked = myThanks.Contains(r.Id),
+            CanThank = viewerCanThank && meId != r.AuthorId && !r.IsDeleted && !r.IsCensored && !r.AuthorBanned && !r.AuthorDeleted,
             AuthorBanned = r.AuthorBanned,
             AuthorDeleted = r.AuthorDeleted,
             Body = r.Body,
@@ -201,6 +238,21 @@ public class ThreadController : Controller
         var following = meId is int uid && await this.db.ThreadSubscriptions
             .AnyAsync(s => s.ThreadId == thread.Id && s.UserId == uid && !s.IsMuted);
 
+        // Image-posting perk (approved ≥1 month) — drives the reply form's picker + hint.
+        var canPostImages = false;
+        DateTime? imageUnlockUtc = null;
+        if (meId is int meUid)
+        {
+            var me = await this.db.Users.AsNoTracking()
+                .Select(x => new { x.Id, x.IsApproved, x.ApprovedAtUtc })
+                .FirstOrDefaultAsync(x => x.Id == meUid);
+            if (me is not null)
+            {
+                canPostImages = MemberPerks.CanPostImages(me.IsApproved, me.ApprovedAtUtc, now);
+                imageUnlockUtc = MemberPerks.ImagePostingUnlockUtc(me.IsApproved, me.ApprovedAtUtc);
+            }
+        }
+
         return this.View(new ThreadDetailViewModel
         {
             ThreadId = thread.Id,
@@ -216,6 +268,8 @@ public class ThreadController : Controller
             TotalPages = totalPages,
             IsFollowing = following,
             Reply = new ReplyViewModel { ThreadId = thread.Id },
+            CanPostImages = canPostImages,
+            ImageUnlockUtc = imageUnlockUtc,
         });
     }
 
@@ -241,14 +295,18 @@ public class ThreadController : Controller
 
     [HttpGet("create")]
     [Authorize(Policy = Policies.CanPost)]
-    public IActionResult Create(ForumCategory category = ForumCategory.GeneralDiscussion)
-        => this.View(new CreateThreadViewModel { Category = category == ForumCategory.Unknown ? ForumCategory.GeneralDiscussion : category });
+    public async Task<IActionResult> Create(ForumCategory category = ForumCategory.GeneralDiscussion)
+    {
+        await this.SetImagePerkViewBagAsync();
+        return this.View(new CreateThreadViewModel { Category = category == ForumCategory.Unknown ? ForumCategory.GeneralDiscussion : category });
+    }
 
     [HttpPost("create")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.CanPost)]
-    public async Task<IActionResult> Create(CreateThreadViewModel model)
+    public async Task<IActionResult> Create(CreateThreadViewModel model, List<IFormFile>? images)
     {
+        await this.SetImagePerkViewBagAsync();
         if (model.Category == ForumCategory.Unknown)
         {
             this.ModelState.AddModelError(nameof(model.Category), "Choose a category.");
@@ -312,6 +370,8 @@ public class ThreadController : Controller
         this.db.Posts.Add(opening);
         await this.db.SaveChangesAsync();
 
+        await this.AttachImagesAsync(opening, images, now);
+
         await this.notifications.NotifyOnNewPostAsync(opening);
 
         return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
@@ -320,7 +380,7 @@ public class ThreadController : Controller
     [HttpPost("reply")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.CanPost)]
-    public async Task<IActionResult> Reply(ReplyViewModel model)
+    public async Task<IActionResult> Reply(ReplyViewModel model, List<IFormFile>? images)
     {
         var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Id == model.ThreadId && !t.IsDeleted);
         if (thread is null)
@@ -356,6 +416,8 @@ public class ThreadController : Controller
         thread.LastPostAtUtc = now;
         thread.UpdatedAtUtc = now;
         await this.db.SaveChangesAsync();
+
+        await this.AttachImagesAsync(post, images, now);
 
         await this.notifications.NotifyOnNewPostAsync(post);
 
@@ -479,6 +541,80 @@ public class ThreadController : Controller
         this.TempData["Message"] = "Thanks — this has been reported to the moderators for review.";
         return this.Redirect($"/thread/{post.Thread.Slug}");
     }
+
+    /// <summary>
+    /// Toggle a "thank" on a post. Approved members can thank any live post that
+    /// isn't their own; thanking again removes it. One thank per member per post
+    /// (enforced by a unique index; a race just no-ops). Redirects back to the post.
+    /// </summary>
+    [HttpPost("post/{id:int}/thank")]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = Policies.CanPost)]
+    public async Task<IActionResult> Thank(int id)
+    {
+        if (this.CurrentUserId() is not int uid)
+        {
+            return this.Challenge();
+        }
+
+        var post = await this.db.Posts.Include(p => p.Thread)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        // Only live posts, and never your own, can be thanked.
+        if (post?.Thread is null || post.Thread.IsDeleted || post.IsDeleted || post.IsCensored || post.AuthorId == uid)
+        {
+            return this.NotFound();
+        }
+
+        var existing = await this.db.PostThanks
+            .FirstOrDefaultAsync(t => t.PostId == id && t.UserId == uid);
+
+        if (existing is not null)
+        {
+            this.db.PostThanks.Remove(existing);
+            await this.db.SaveChangesAsync();
+        }
+        else
+        {
+            this.db.PostThanks.Add(new PostThank
+            {
+                PostId = id,
+                UserId = uid,
+                PostAuthorId = post.AuthorId,
+                CreatedAtUtc = DateTime.UtcNow,
+            });
+            try
+            {
+                await this.db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Double-click / two tabs raced the unique index — already thanked.
+                this.db.ChangeTracker.Clear();
+            }
+        }
+
+        var landingPage = await this.PageOfAsync(post);
+        return this.Redirect($"/thread/{post.Thread.Slug}?page={landingPage}#post-{id}");
+    }
+
+    /// <summary>Which page (1-based) a post falls on, so a redirect lands on it.</summary>
+    private async Task<int> PageOfAsync(Post post)
+    {
+        var earlier = await this.db.Posts.CountAsync(p => p.ThreadId == post.ThreadId && p.CreatedAtUtc < post.CreatedAtUtc);
+        return (earlier / PageSize) + 1;
+    }
+
+    /// <summary>
+    /// Live preview: render a draft body through the exact same markdown + sanitizer
+    /// pipeline used for real posts, so a member can check formatting and links
+    /// before submitting. Output is already sanitized, so it's safe to inject.
+    /// </summary>
+    [HttpPost("preview")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public IActionResult Preview([FromForm] string? body)
+        => this.Content(ForumMarkup.ToHtml(body), "text/html; charset=utf-8");
 
     /// <summary>
     /// Admin: censor a post to keep the community safe (threatening / dangerous
@@ -635,5 +771,85 @@ public class ThreadController : Controller
     {
         var id = this.users.GetUserId(this.User);
         return int.TryParse(id, out var i) ? i : null;
+    }
+
+    /// <summary>Whether the current member has held an approved account long enough to attach images.</summary>
+    private async Task<bool> CurrentUserCanPostImagesAsync(CancellationToken ct = default)
+    {
+        if (this.CurrentUserId() is not int uid)
+        {
+            return false;
+        }
+
+        var u = await this.db.Users.AsNoTracking()
+            .Select(x => new { x.Id, x.IsApproved, x.ApprovedAtUtc })
+            .FirstOrDefaultAsync(x => x.Id == uid, ct);
+        return u is not null && MemberPerks.CanPostImages(u.IsApproved, u.ApprovedAtUtc, DateTime.UtcNow);
+    }
+
+    /// <summary>Populates ViewBag.CanPostImages / ViewBag.ImageUnlockUtc for the create-thread view.</summary>
+    private async Task SetImagePerkViewBagAsync()
+    {
+        var can = false;
+        DateTime? unlock = null;
+        if (this.CurrentUserId() is int uid)
+        {
+            var u = await this.db.Users.AsNoTracking()
+                .Select(x => new { x.Id, x.IsApproved, x.ApprovedAtUtc })
+                .FirstOrDefaultAsync(x => x.Id == uid);
+            if (u is not null)
+            {
+                can = MemberPerks.CanPostImages(u.IsApproved, u.ApprovedAtUtc, DateTime.UtcNow);
+                unlock = MemberPerks.ImagePostingUnlockUtc(u.IsApproved, u.ApprovedAtUtc);
+            }
+        }
+
+        this.ViewBag.CanPostImages = can;
+        this.ViewBag.ImageUnlockUtc = unlock;
+    }
+
+    /// <summary>
+    /// Saves valid uploaded images and links them to <paramref name="post"/>. Server-side
+    /// gate: silently drops everything unless the member's image-posting perk has unlocked
+    /// (the compose UI only shows the picker to eligible members, but never trust the client).
+    /// </summary>
+    private async Task AttachImagesAsync(Post post, List<IFormFile>? images, DateTime now, CancellationToken ct = default)
+    {
+        if (images is null || images.Count == 0 || !await this.CurrentUserCanPostImagesAsync(ct))
+        {
+            return;
+        }
+
+        var order = 0;
+        foreach (var file in images.Take(MaxPostImages))
+        {
+            if (file.Length <= 0 || file.Length > MaxPostImageBytes)
+            {
+                continue;
+            }
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!AllowedImageExt.Contains(ext))
+            {
+                continue;
+            }
+
+            await using var stream = file.OpenReadStream();
+            // Foldered per thread (threads/{threadId}) so a thread's images stay together;
+            // the filename is a GUID (see BunnyImageStorage) so uploads never collide.
+            var key = await this.images.SaveAsync(stream, $"threads/{post.ThreadId}", ext, ct);
+            this.db.PostImages.Add(new PostImage
+            {
+                PostId = post.Id,
+                StoragePath = key,
+                SortOrder = order++,
+                CreatedAtUtc = now,
+            });
+        }
+
+        if (order > 0)
+        {
+            await this.db.SaveChangesAsync(ct);
+        }
     }
 }

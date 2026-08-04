@@ -49,6 +49,13 @@
             else if (!string.IsNullOrWhiteSpace(Model.TwitterUrl)) { <li>X / Twitter: @Model.TwitterUrl</li> }
             @if (!string.IsNullOrWhiteSpace(Model.SimpleXAddress)) { <li>SimpleX: <span style="word-break:break-all;">@Model.SimpleXAddress</span></li> }
             @if (!string.IsNullOrWhiteSpace(Model.TelegramHandle)) { <li>Telegram: @Model.TelegramHandle</li> }
+            @foreach (var (label, url) in CustomLinks())
+            {
+                var safe = SafeHttpUrl(url);
+                var text = string.IsNullOrWhiteSpace(label) ? url : label;
+                if (safe != null) { <li><a href="@safe" target="_blank" rel="nofollow noopener ugc">@text</a></li> }
+                else { <li>@text</li> }
+            }
         </ul>
     </div>
 }
@@ -56,8 +63,18 @@
 @if (!string.IsNullOrWhiteSpace(Model.MoneroDonationAddress))
 {
     <div class="panel">
-        <h2 class="panel-title">Monero donation address</h2>
-        <code style="word-break:break-all;display:block;background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--border);">@Model.MoneroDonationAddress</code>
+        <h2 class="panel-title">Tip @Model.DisplayName in Monero</h2>
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+            @if (!string.IsNullOrEmpty(Model.MoneroQrDataUri))
+            {
+                <img src="@Model.MoneroQrDataUri" alt="Monero tip QR code" width="150" height="150"
+                     style="flex:0 0 auto;border-radius:6px;background:#fff;padding:6px;" />
+            }
+            <div style="flex:1 1 220px;min-width:0;">
+                <div class="dim" style="font-size:12px;margin-bottom:4px;">Scan with a Monero wallet, or copy the address:</div>
+                <code style="word-break:break-all;display:block;background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--border);">@Model.MoneroDonationAddress</code>
+            </div>
+        </div>
     </div>
 }
 
@@ -70,7 +87,15 @@
 }
 
 @functions {
+    IEnumerable<(string? Label, string? Url)> CustomLinks()
+    {
+        if (!string.IsNullOrWhiteSpace(Model.Link1Url) || !string.IsNullOrWhiteSpace(Model.Link1Label)) { yield return (Model.Link1Label, Model.Link1Url); }
+        if (!string.IsNullOrWhiteSpace(Model.Link2Url) || !string.IsNullOrWhiteSpace(Model.Link2Label)) { yield return (Model.Link2Label, Model.Link2Url); }
+        if (!string.IsNullOrWhiteSpace(Model.Link3Url) || !string.IsNullOrWhiteSpace(Model.Link3Label)) { yield return (Model.Link3Label, Model.Link3Url); }
+    }
+
     bool HasAnyLinks() =>
         !string.IsNullOrWhiteSpace(Model.WebsiteUrl) || !string.IsNullOrWhiteSpace(Model.TwitterUrl)
-        || !string.IsNullOrWhiteSpace(Model.SimpleXAddress) || !string.IsNullOrWhiteSpace(Model.TelegramHandle);
+        || !string.IsNullOrWhiteSpace(Model.SimpleXAddress) || !string.IsNullOrWhiteSpace(Model.TelegramHandle)
+        || CustomLinks().Any();
 }

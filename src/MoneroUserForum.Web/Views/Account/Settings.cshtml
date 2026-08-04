@@ -15,6 +15,14 @@
     <a class="btn" asp-controller="Profile" asp-action="Me">View my profile</a>
 </div>
 
+<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div style="flex:1 1 auto;min-width:0;">
+        <h2 class="panel-title" style="margin:0;">What unlocks when</h2>
+        <div class="muted" style="font-size:13px;">See which features you've unlocked — including image posting, which opens 1 month after approval.</div>
+    </div>
+    <a class="btn" asp-action="Unlocks">View unlocks →</a>
+</div>
+
 <div class="panel">
     <h2 class="panel-title">Change password</h2>
     <form asp-action="ChangePassword" method="post" class="form-narrow">

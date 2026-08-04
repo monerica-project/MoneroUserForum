@@ -21,6 +21,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
     public DbSet<ThreadSubscription> ThreadSubscriptions => this.Set<ThreadSubscription>();
     public DbSet<ThreadView> ThreadViews => this.Set<ThreadView>();
     public DbSet<Report> Reports => this.Set<Report>();
+    public DbSet<PostThank> PostThanks => this.Set<PostThank>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -125,6 +126,19 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
             e.HasIndex(x => new { x.ThreadId, x.VisitorKey }).IsUnique();
 
             e.HasOne(x => x.Thread).WithMany(t => t.Views).HasForeignKey(x => x.ThreadId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<PostThank>(e =>
+        {
+            // One thank per member per post.
+            e.HasIndex(x => new { x.PostId, x.UserId }).IsUnique();
+
+            // Fast "thanks received" totals per author.
+            e.HasIndex(x => x.PostAuthorId);
+
+            e.HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PostAuthor).WithMany().HasForeignKey(x => x.PostAuthorId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -36,10 +36,25 @@
             <label asp-for="TelegramHandle"></label>
             <input asp-for="TelegramHandle" placeholder="@@handle" />
         </div>
+
+        <h2 class="panel-title" style="margin-top:20px;">Your links</h2>
+        <p class="hint" style="margin-top:-6px;">Up to three links — e.g. your personal site, a social profile, or anything else. Each needs an http/https URL to show as a link.</p>
+        @for (var i = 1; i <= 3; i++)
+        {
+            var labelName = $"Link{i}Label";
+            var urlName = $"Link{i}Url";
+            var labelVal = (string?)ViewData.Eval(labelName);
+            var urlVal = (string?)ViewData.Eval(urlName);
+            <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input name="@labelName" value="@labelVal" maxlength="40" placeholder="Label (e.g. My site)" style="flex:1 1 160px;" />
+                <input name="@urlName" value="@urlVal" maxlength="2048" placeholder="https://" style="flex:2 1 240px;" />
+            </div>
+        }
+
         <div class="form-group">
             <label asp-for="MoneroDonationAddress"></label>
             <input asp-for="MoneroDonationAddress" placeholder="4... or 8..." />
-            <div class="hint">Shown on your profile so others can donate (no tipping on-site).</div>
+            <div class="hint">Shown on your profile with a tip QR code so others can send you XMR from their own wallet.</div>
         </div>
         <div class="form-group">
             <label asp-for="PgpPublicKey"></label>
