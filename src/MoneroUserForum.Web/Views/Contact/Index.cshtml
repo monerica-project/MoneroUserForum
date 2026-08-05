@@ -1,0 +1,47 @@
+@model MoneroUserForum.Web.Models.Contact.ContactFormModel
+@{
+    ViewData["Title"] = "Contact";
+    var sent = ViewBag.Sent == true;
+    var adminEmail = ViewBag.AdminEmail as string ?? "admin@monerouserforum.com";
+}
+<div class="panel form-narrow" style="margin: 24px auto 0;">
+    <h1>Contact</h1>
+    <p class="muted">Feedback, questions, or a problem to report? Send us a message — it goes straight to the admins.</p>
+
+    @if (sent)
+    {
+        <div class="notice" role="status" style="padding:12px 14px;border:1px solid var(--mono-orange);border-radius:var(--radius);background:var(--bg);margin-bottom:14px;">
+            Thanks — your message was sent to the admins.
+        </div>
+    }
+
+    <form asp-action="Index" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="form-group">
+            <label asp-for="FromName"></label>
+            <input asp-for="FromName" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label asp-for="FromEmail"></label>
+            <input asp-for="FromEmail" type="email" autocomplete="off" placeholder="you@example.com" />
+            <span asp-validation-for="FromEmail" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label asp-for="Message"></label>
+            <textarea asp-for="Message" rows="6" required></textarea>
+            <span asp-validation-for="Message" class="text-danger"></span>
+        </div>
+        <div class="form-group">
+            <label asp-for="CaptchaAnswer">Spam check — what is @ViewBag.Captcha?</label>
+            <input asp-for="CaptchaAnswer" autocomplete="off" inputmode="numeric" style="max-width:120px;" />
+            <span asp-validation-for="CaptchaAnswer" class="text-danger"></span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send message</button>
+    </form>
+
+    <hr style="border:0;border-top:1px solid var(--border);margin:18px 0;" />
+    <p class="muted" style="margin:0;">
+        Prefer email? You can also reach the admins directly at
+        <a href="mailto:@adminEmail">@adminEmail</a>.
+    </p>
+</div>

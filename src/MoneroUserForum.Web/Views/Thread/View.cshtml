@@ -29,10 +29,23 @@
         </div>
         @if (User.IsInRole("Admin"))
         {
-            <form asp-controller="Thread" asp-action="DeleteThread" asp-route-id="@Model.ThreadId" method="post"
-                  data-confirm="Permanently delete this entire thread and all its posts?">
-                <button type="submit" class="btn btn-sm btn-danger">Delete thread</button>
-            </form>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <form asp-controller="Thread" asp-action="ChangeCategory" asp-route-id="@Model.ThreadId" method="post"
+                      style="display:flex;gap:6px;align-items:center;">
+                    <select name="category" class="select select-sm" aria-label="Change category">
+                        @foreach (var c in Enum.GetValues<MoneroUserForum.Data.Enums.ForumCategory>()
+                            .Where(c => c != MoneroUserForum.Data.Enums.ForumCategory.Unknown))
+                        {
+                            <option value="@c" selected="@(c == Model.Category)">@Describe(c)</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-sm">Move</button>
+                </form>
+                <form asp-controller="Thread" asp-action="DeleteThread" asp-route-id="@Model.ThreadId" method="post"
+                      data-confirm="Permanently delete this entire thread and all its posts?">
+                    <button type="submit" class="btn btn-sm btn-danger">Delete thread</button>
+                </form>
+            </div>
         }
     </div>
 </div>
@@ -246,6 +259,7 @@
 
 </div><!-- /thread-main -->
 <aside class="thread-side">
+    @await Component.InvokeAsync("MoneroPrice")
     @await Component.InvokeAsync("Sponsors", new { side = true })
 </aside>
 </div><!-- /thread-layout -->

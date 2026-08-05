@@ -7,6 +7,7 @@
 <div class="dm-layout">
     <div class="dm-leftcol">
         @await Html.PartialAsync("_ConversationList", Model.Conversations)
+        @await Component.InvokeAsync("MoneroPrice")
         @await Component.InvokeAsync("Sponsors", new { side = true })
     </div>
 
@@ -52,5 +53,5 @@
 </div>
 
 @section Scripts {
-    <script src="~/js/dm.js" asp-append-version="true"></script>
+    <script src="~/js/e2ee-messages.js" asp-append-version="true"></script>
 }

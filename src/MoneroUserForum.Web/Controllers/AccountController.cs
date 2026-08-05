@@ -121,10 +121,27 @@ public class AccountController : Controller
             return this.View(model);
         }
 
+        // E2EE keys are generated in the browser (e2ee.js) and posted as hidden fields.
+        // They are opaque here — the private keys arrive already wrapped under the password.
+        if (!string.IsNullOrWhiteSpace(model.EncPublicKey) && !string.IsNullOrWhiteSpace(model.WrappedPrivateKeys))
+        {
+            user.EncPublicKey = model.EncPublicKey;
+            user.SignPublicKey = model.SignPublicKey;
+            user.KdfSalt = model.KdfSalt;
+            user.WrappedPrivateKeys = model.WrappedPrivateKeys;
+            user.RecoverySalt = model.RecoverySalt;
+            user.RecoveryWrappedPrivateKeys = model.RecoveryWrappedPrivateKeys;
+            user.E2eeEnabledUtc = now;
+            await this.users.UpdateAsync(user);
+        }
+
         await this.users.AddToRoleAsync(user, Roles.Member);
         await this.signIn.SignInAsync(user, isPersistent: true);
         return this.RedirectToAction(nameof(this.Pending));
     }
+
+    private bool IsFetch() =>
+        string.Equals(this.Request.Headers["X-Requested-With"], "fetch", StringComparison.OrdinalIgnoreCase);
 
     [HttpGet("pending")]
     public IActionResult Pending() => this.View();
@@ -149,27 +166,113 @@ public class AccountController : Controller
         if (user is null || user.IsDeleted)
         {
             this.ModelState.AddModelError(string.Empty, "Invalid username or password.");
-            return this.View(model);
+            return this.IsFetch()
+                ? this.BadRequest(new { ok = false, error = "Invalid username or password." })
+                : this.View(model);
         }
 
         var result = await this.signIn.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
-            this.ModelState.AddModelError(string.Empty, result.IsLockedOut
+            var msg = result.IsLockedOut
                 ? "This account is temporarily locked after too many attempts. Try again later."
-                : "Invalid username or password.");
-            return this.View(model);
+                : "Invalid username or password.";
+            this.ModelState.AddModelError(string.Empty, msg);
+            return this.IsFetch() ? this.BadRequest(new { ok = false, error = msg }) : this.View(model);
         }
 
         user.LastLoginAtUtc = DateTime.UtcNow;
         await this.users.UpdateAsync(user);
 
-        if (!string.IsNullOrEmpty(model.ReturnUrl) && this.Url.IsLocalUrl(model.ReturnUrl))
+        var redirect = !string.IsNullOrEmpty(model.ReturnUrl) && this.Url.IsLocalUrl(model.ReturnUrl)
+            ? model.ReturnUrl
+            : this.Url.Action("Index", "Home");
+
+        // Fetch path: hand back the wrapped private-key blob so the browser can unlock it
+        // with the still-in-memory password. hasKeys=false means this member has no keys
+        // yet (e.g. an account created before E2EE) — the client generates them now.
+        if (this.IsFetch())
         {
-            return this.Redirect(model.ReturnUrl);
+            var hasKeys = !string.IsNullOrEmpty(user.EncPublicKey) && !string.IsNullOrEmpty(user.WrappedPrivateKeys);
+            return this.Json(new
+            {
+                ok = true,
+                redirect,
+                userId = user.Id,
+                hasKeys,
+                keys = hasKeys ? new
+                {
+                    kdfSalt = user.KdfSalt,
+                    wrappedPrivateKeys = user.WrappedPrivateKeys,
+                    encPublicKey = user.EncPublicKey,
+                    signPublicKey = user.SignPublicKey,
+                } : null,
+            });
         }
 
-        return this.RedirectToAction("Index", "Home");
+        return this.Redirect(redirect!);
+    }
+
+    // ---- E2EE key lifecycle --------------------------------------------
+
+    /// <summary>Returns the signed-in member's public keys + wrapped private-key blob so the
+    /// browser can unlock on this device. The wrapped blob is useless without the password.</summary>
+    [HttpGet("e2ee-keys")]
+    [Authorize]
+    public async Task<IActionResult> E2eeKeys()
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        var hasKeys = !string.IsNullOrEmpty(user.EncPublicKey) && !string.IsNullOrEmpty(user.WrappedPrivateKeys);
+        return this.Json(new
+        {
+            userId = user.Id,
+            hasKeys,
+            kdfSalt = user.KdfSalt,
+            wrappedPrivateKeys = user.WrappedPrivateKeys,
+            encPublicKey = user.EncPublicKey,
+            signPublicKey = user.SignPublicKey,
+        });
+    }
+
+    /// <summary>Stores the browser-generated public keys + wrapped private blobs. First-time
+    /// only — never overwrites existing keys (that would orphan a member's received messages).</summary>
+    [HttpPost("e2ee-setup")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public async Task<IActionResult> E2eeSetup(E2eeSetupModel model)
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (!string.IsNullOrEmpty(user.EncPublicKey))
+        {
+            return this.BadRequest(new { ok = false, error = "Encryption keys are already set up for this account." });
+        }
+
+        if (string.IsNullOrWhiteSpace(model.EncPublicKey) || string.IsNullOrWhiteSpace(model.SignPublicKey)
+            || string.IsNullOrWhiteSpace(model.KdfSalt) || string.IsNullOrWhiteSpace(model.WrappedPrivateKeys))
+        {
+            return this.BadRequest(new { ok = false, error = "Incomplete key material." });
+        }
+
+        user.EncPublicKey = model.EncPublicKey;
+        user.SignPublicKey = model.SignPublicKey;
+        user.KdfSalt = model.KdfSalt;
+        user.WrappedPrivateKeys = model.WrappedPrivateKeys;
+        user.RecoverySalt = model.RecoverySalt;
+        user.RecoveryWrappedPrivateKeys = model.RecoveryWrappedPrivateKeys;
+        user.E2eeEnabledUtc = DateTime.UtcNow;
+        await this.users.UpdateAsync(user);
+
+        return this.Json(new { ok = true });
     }
 
     [HttpPost("logout")]
@@ -198,7 +301,32 @@ public class AccountController : Controller
 
         this.ViewBag.Email = user.Email;
         this.ViewBag.HasEmail = !string.IsNullOrWhiteSpace(user.Email);
+        this.ViewBag.EmailNotificationsEnabled = user.EmailNotificationsEnabled;
         return this.View();
+    }
+
+    [HttpPost("email-notifications")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public async Task<IActionResult> SetEmailNotifications(bool enabled)
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (enabled && string.IsNullOrWhiteSpace(user.Email))
+        {
+            this.TempData["Error"] = "Add an email address first, then turn on email notifications.";
+            return this.RedirectToAction(nameof(this.Settings));
+        }
+
+        user.EmailNotificationsEnabled = enabled;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await this.users.UpdateAsync(user);
+        this.TempData["Message"] = enabled ? "Email notifications turned on." : "Email notifications turned off.";
+        return this.RedirectToAction(nameof(this.Settings));
     }
 
     [HttpPost("change-password")]

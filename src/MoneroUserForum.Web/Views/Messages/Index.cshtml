@@ -17,6 +17,7 @@
                 <p class="muted" style="margin:0;">Select a conversation on the left to read it, or start a new one.</p>
             }
         </div>
+        @await Component.InvokeAsync("MoneroPrice")
         @await Component.InvokeAsync("Sponsors", new { side = true })
     </section>
 </div>

@@ -20,7 +20,12 @@ public class ConversationSummary
 
 public class MessageItem
 {
+    /// <summary>Legacy plaintext body (old rows only; null/empty for encrypted messages).</summary>
     public string Body { get; set; } = string.Empty;
+
+    /// <summary>The end-to-end-encrypted envelope (JSON) — decrypted in the browser. Null for legacy rows.</summary>
+    public string? Envelope { get; set; }
+
     public bool FromMe { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }
@@ -45,7 +50,14 @@ public class ComposeViewModel
     [Display(Name = "To (username)")]
     public string ToUsername { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(10000, MinimumLength = 1)]
-    public string Body { get; set; } = string.Empty;
+    /// <summary>Plaintext is only ever read in the browser; it is never posted to the server.</summary>
+    public string? Body { get; set; }
+
+    /// <summary>
+    /// The end-to-end-encrypted envelope produced by e2ee.js. This is what the server
+    /// stores — it never sees the plaintext. Required (a message can't be sent unencrypted).
+    /// </summary>
+    [Required(ErrorMessage = "Your message could not be encrypted. Make sure your browser supports encryption and you're logged in.")]
+    [StringLength(200000)]
+    public string Envelope { get; set; } = string.Empty;
 }

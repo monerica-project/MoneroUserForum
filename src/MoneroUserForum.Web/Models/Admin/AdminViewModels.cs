@@ -23,6 +23,7 @@ public class AdminDashboardViewModel
     public int ThreadCount { get; set; }
     public int PostCount { get; set; }
     public int ReportsPending { get; set; }
+    public int ContactUnread { get; set; }
 }
 
 public class AdminReportRow

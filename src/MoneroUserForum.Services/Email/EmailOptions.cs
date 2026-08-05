@@ -13,5 +13,8 @@ public class EmailOptions
     public string FromName { get; set; } = "Monero User Forum";
     public bool UseSsl { get; set; } = true;
 
+    /// <summary>Absolute site base URL used to build links inside notification emails.</summary>
+    public string SiteUrl { get; set; } = "https://monerouserforum.com";
+
     public bool Enabled => !string.IsNullOrWhiteSpace(this.Host) && !string.IsNullOrWhiteSpace(this.FromAddress);
 }

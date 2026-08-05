@@ -740,6 +740,27 @@ public class ThreadController : Controller
     }
 
     /// <summary>Admin: permanently delete a thread and every post in it.</summary>
+    [HttpPost("{id:int}/category")]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> ChangeCategory(int id, ForumCategory category)
+    {
+        var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Id == id);
+        if (thread is null)
+        {
+            return this.NotFound();
+        }
+
+        if (category != ForumCategory.Unknown && thread.Category != category)
+        {
+            thread.Category = category;
+            await this.db.SaveChangesAsync();
+            this.TempData["Message"] = "Thread category updated.";
+        }
+
+        return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
+    }
+
     [HttpPost("{id:int}/delete-thread")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.AdminOnly)]

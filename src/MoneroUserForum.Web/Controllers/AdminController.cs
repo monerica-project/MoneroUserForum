@@ -35,8 +35,49 @@ public class AdminController : Controller
             ThreadCount = await this.db.ForumThreads.CountAsync(t => !t.IsDeleted),
             PostCount = await this.db.Posts.CountAsync(),
             ReportsPending = await this.db.Reports.CountAsync(r => r.Status == ReportStatus.Pending),
+            ContactUnread = await this.db.ContactMessages.CountAsync(m => !m.IsHandled),
         };
         return this.View(vm);
+    }
+
+    // ---- Contact inbox (external feedback from the public Contact page) ----
+
+    [HttpGet("messages")]
+    public async Task<IActionResult> Messages()
+    {
+        var rows = await this.db.ContactMessages
+            .OrderByDescending(m => m.CreatedAtUtc)
+            .Take(500)
+            .ToListAsync();
+        return this.View(rows);
+    }
+
+    [HttpPost("messages/{id}/handled")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleContactHandled(int id)
+    {
+        var m = await this.db.ContactMessages.FindAsync(id);
+        if (m is not null)
+        {
+            m.IsHandled = !m.IsHandled;
+            await this.db.SaveChangesAsync();
+        }
+
+        return this.RedirectToAction(nameof(this.Messages));
+    }
+
+    [HttpPost("messages/{id}/delete")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteContact(int id)
+    {
+        var m = await this.db.ContactMessages.FindAsync(id);
+        if (m is not null)
+        {
+            this.db.ContactMessages.Remove(m);
+            await this.db.SaveChangesAsync();
+        }
+
+        return this.RedirectToAction(nameof(this.Messages));
     }
 
     [HttpGet("reports")]

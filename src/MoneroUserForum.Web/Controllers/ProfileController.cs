@@ -69,6 +69,7 @@ public class ProfileController : Controller
             TwitterUrl = user.TwitterUrl,
             SimpleXAddress = user.SimpleXAddress,
             TelegramHandle = user.TelegramHandle,
+            MonericaUrl = user.MonericaUrl,
             PgpPublicKey = user.PgpPublicKey,
             Signature = user.Signature,
             MoneroDonationAddress = user.MoneroDonationAddress,
@@ -104,6 +105,16 @@ public class ProfileController : Controller
         if (user is null)
         {
             return this.Challenge();
+        }
+
+        // The Monerica link is specifically the member's own monerica.com listing, so
+        // require it to actually point at monerica.com (any subdomain).
+        if (!string.IsNullOrWhiteSpace(model.MonericaUrl)
+            && (!Uri.TryCreate(model.MonericaUrl.Trim(), UriKind.Absolute, out var mUri)
+                || !(mUri.Host.Equals("monerica.com", StringComparison.OrdinalIgnoreCase)
+                     || mUri.Host.EndsWith(".monerica.com", StringComparison.OrdinalIgnoreCase))))
+        {
+            this.ModelState.AddModelError(nameof(model.MonericaUrl), "Enter a link on monerica.com (e.g. https://monerica.com/site/your-listing).");
         }
 
         if (!this.ModelState.IsValid)
@@ -150,6 +161,7 @@ public class ProfileController : Controller
         user.TwitterUrl = Trim(model.TwitterUrl);
         user.SimpleXAddress = Trim(model.SimpleXAddress);
         user.TelegramHandle = Trim(model.TelegramHandle);
+        user.MonericaUrl = Trim(model.MonericaUrl);
         user.PgpPublicKey = Trim(model.PgpPublicKey);
         user.MoneroDonationAddress = Trim(model.MoneroDonationAddress);
         user.Link1Label = Trim(model.Link1Label);
@@ -174,6 +186,7 @@ public class ProfileController : Controller
         TwitterUrl = user.TwitterUrl,
         SimpleXAddress = user.SimpleXAddress,
         TelegramHandle = user.TelegramHandle,
+        MonericaUrl = user.MonericaUrl,
         PgpPublicKey = user.PgpPublicKey,
         MoneroDonationAddress = user.MoneroDonationAddress,
         Link1Label = user.Link1Label,

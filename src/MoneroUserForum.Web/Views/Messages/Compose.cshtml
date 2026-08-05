@@ -34,10 +34,12 @@ else
 </div>
 </div>
 <aside class="thread-side">
+    @await Component.InvokeAsync("MoneroPrice")
     @await Component.InvokeAsync("Sponsors", new { side = true })
 </aside>
 </div>
 
 @section Scripts {
     <script src="~/js/compose.js" asp-append-version="true"></script>
+    <script src="~/js/e2ee-messages.js" asp-append-version="true"></script>
 }

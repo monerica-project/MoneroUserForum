@@ -19,4 +19,10 @@ public enum ForumCategory
 
     [Description("General Discussion")]
     GeneralDiscussion = 3,
+
+    [Description("Announcements")]
+    Announcements = 4,
+
+    [Description("Exchange Talk")]
+    ExchangeTalk = 5,
 }

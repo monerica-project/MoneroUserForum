@@ -99,6 +99,16 @@ builder.Services.AddSession(options =>
 // ---- Application services (storage, notifications, seeder) ----
 builder.Services.AddForumServices(builder.Configuration);
 
+// XMR price: fetched server-side from moneropricenow.com once a minute and cached, so
+// it renders without JavaScript. (moneropricenow.com serves it from its own 15s cache.)
+builder.Services.AddHttpClient("moneroprice", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(8);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("MoneroUserForum/1.0 (+https://monerouserforum.com)");
+});
+builder.Services.AddSingleton<MoneroUserForum.Web.Pricing.MoneroPriceService>();
+builder.Services.AddHostedService<MoneroUserForum.Web.Pricing.MoneroPriceRefresher>();
+
 // When Bunny isn't configured, images fall back to on-disk storage: point it at
 // wwwroot/uploads (served as /uploads) so avatars actually save + serve.
 builder.Services.PostConfigure<MoneroUserForum.Services.Storage.BunnyStorageOptions>(o =>

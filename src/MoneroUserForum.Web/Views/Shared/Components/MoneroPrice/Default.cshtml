@@ -1,0 +1,8 @@
+@model MoneroUserForum.Web.Pricing.MoneroPriceService.Snapshot
+@if (Model is not null && Model.PriceUsdt > 0)
+{
+    <div class="xmr-price" style="font-size:.78rem;text-align:center;margin:0 0 8px;">
+        <a href="https://moneropricenow.com" rel="noopener" target="_blank" title="Monero price via moneropricenow.com"
+           style="color:var(--muted, #9aa);text-decoration:none;">XMR ≈ $@Model.PriceUsdt.ToString("N2")</a>
+    </div>
+}

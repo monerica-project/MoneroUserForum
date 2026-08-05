@@ -409,3 +409,6 @@ textarea { min-height: 120px; resize: vertical; }
 .unlocks-table thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); }
 .unlocks-table td:first-child { width: 26px; font-size: 17px; }
 .unlocks-table .dim { font-size: 12px; }
+
+/* XMR price (via moneropricenow.com) — show it's a link on hover. */
+.xmr-price a:hover { text-decoration: underline !important; }

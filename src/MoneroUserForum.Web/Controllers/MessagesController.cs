@@ -57,6 +57,7 @@ public class MessagesController : Controller
                 PartnerBanned = m.SenderId == me ? m.Recipient!.IsBanned : m.Sender!.IsBanned,
                 PartnerCreatedAtUtc = m.SenderId == me ? m.Recipient!.CreatedAtUtc : m.Sender!.CreatedAtUtc,
                 m.Body,
+                HasEnvelope = m.EncryptedEnvelope != null,
                 m.CreatedAtUtc,
                 Incoming = m.RecipientId == me,
                 m.IsReadByRecipient,
@@ -99,7 +100,7 @@ public class MessagesController : Controller
                     PartnerBanned = last.PartnerBanned,
                     PartnerIsAdmin = adminIds.Contains(g.Key),
                     PartnerReputation = ReputationCalculator.Compute(last.PartnerCreatedAtUtc, postCounts.GetValueOrDefault(g.Key), now),
-                    LastSnippet = Snippet(last.Body),
+                    LastSnippet = last.HasEnvelope ? "🔒 Encrypted message" : Snippet(last.Body),
                     LastAtUtc = last.CreatedAtUtc,
                     UnreadCount = g.Count(x => x.Incoming && !x.IsReadByRecipient),
                 };
@@ -149,6 +150,23 @@ public class MessagesController : Controller
         return this.PartialView("_DmList", messages);
     }
 
+    /// <summary>Public keys for a member, so the sender's browser can encrypt to them.
+    /// 404 if the member hasn't set up encryption keys yet.</summary>
+    [HttpGet("pubkey/{name}")]
+    public async Task<IActionResult> PubKey(string name)
+    {
+        var u = await this.users.FindByNameAsync(name.Trim().ToLowerInvariant());
+        if (u is null || u.IsDeleted || string.IsNullOrEmpty(u.EncPublicKey) || string.IsNullOrEmpty(u.SignPublicKey))
+        {
+            return this.NotFound(new { error = "This member has not set up encryption yet." });
+        }
+
+        return this.Json(new { userId = u.Id, encPublicKey = u.EncPublicKey, signPublicKey = u.SignPublicKey });
+    }
+
+    private static bool IsFetch(HttpRequest req) =>
+        string.Equals(req.Headers["X-Requested-With"], "fetch", StringComparison.OrdinalIgnoreCase);
+
     private async Task<List<MessageItem>> LoadConversationAsync(int me, int partnerId)
     {
         // Opening/reading a conversation clears its unread messages AND its
@@ -166,7 +184,13 @@ public class MessagesController : Controller
             .Where(m => (m.SenderId == me && m.RecipientId == partnerId && !m.DeletedBySender)
                      || (m.SenderId == partnerId && m.RecipientId == me && !m.DeletedByRecipient))
             .OrderBy(m => m.CreatedAtUtc)
-            .Select(m => new MessageItem { Body = m.Body, FromMe = m.SenderId == me, CreatedAtUtc = m.CreatedAtUtc })
+            .Select(m => new MessageItem
+            {
+                Body = m.Body,
+                Envelope = m.EncryptedEnvelope,
+                FromMe = m.SenderId == me,
+                CreatedAtUtc = m.CreatedAtUtc,
+            })
             .ToListAsync();
     }
 
@@ -267,11 +291,14 @@ public class MessagesController : Controller
             return this.View("Compose", model);
         }
 
+        // Store ONLY the browser-produced ciphertext envelope. The plaintext never reaches
+        // the server (the Body field is left empty for all new messages).
         var pm = new PrivateMessage
         {
             SenderId = me,
             RecipientId = partner.Id,
-            Body = model.Body.Trim(),
+            Body = string.Empty,
+            EncryptedEnvelope = model.Envelope,
             CreatedAtUtc = DateTime.UtcNow,
         };
         this.db.PrivateMessages.Add(pm);
@@ -279,7 +306,13 @@ public class MessagesController : Controller
 
         await this.notifications.NotifyPrivateMessageAsync(pm);
 
-        return this.RedirectToAction(nameof(this.Conversation), new { name = partner.DisplayName });
+        var redirect = this.Url.Action(nameof(this.Conversation), new { name = partner.DisplayName });
+        if (IsFetch(this.Request))
+        {
+            return this.Json(new { ok = true, redirect });
+        }
+
+        return this.Redirect(redirect!);
     }
 
     private static string Snippet(string body)

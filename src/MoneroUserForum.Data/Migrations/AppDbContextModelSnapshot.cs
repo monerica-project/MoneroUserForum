@@ -155,6 +155,39 @@ namespace MoneroUserForum.Data.Migrations
                     b.ToTable("ChatMessages");
                 });
 
+            modelBuilder.Entity("MoneroUserForum.Data.Entities.ContactMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FromEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("FromName")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IsHandled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsHandled", "CreatedAtUtc");
+
+                    b.ToTable("ContactMessages");
+                });
+
             modelBuilder.Entity("MoneroUserForum.Data.Entities.ForumThread", b =>
                 {
                     b.Property<int>("Id")
@@ -390,6 +423,9 @@ namespace MoneroUserForum.Data.Migrations
                     b.Property<bool>("DeletedBySender")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("EncryptedEnvelope")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsReadByRecipient")
                         .HasColumnType("boolean");
 
@@ -569,12 +605,21 @@ namespace MoneroUserForum.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<DateTime?>("E2eeEnabledUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("EmailNotificationsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("EncPublicKey")
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsApproved")
                         .HasColumnType("boolean");
@@ -586,6 +631,9 @@ namespace MoneroUserForum.Data.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("JoinNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("KdfSalt")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("LastLoginAtUtc")
@@ -615,6 +663,9 @@ namespace MoneroUserForum.Data.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("MonericaUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("MoneroDonationAddress")
                         .HasColumnType("text");
 
@@ -638,7 +689,16 @@ namespace MoneroUserForum.Data.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("RecoverySalt")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecoveryWrappedPrivateKeys")
+                        .HasColumnType("text");
+
                     b.Property<string>("SecurityStamp")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SignPublicKey")
                         .HasColumnType("text");
 
                     b.Property<string>("Signature")
@@ -664,6 +724,9 @@ namespace MoneroUserForum.Data.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<string>("WebsiteUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("WrappedPrivateKeys")
                         .HasColumnType("text");
 
                     b.HasKey("Id");

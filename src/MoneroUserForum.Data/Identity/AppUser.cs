@@ -38,6 +38,10 @@ public class AppUser : IdentityUser<int>
     /// <summary>Note the member wrote to the admin at sign-up, shown in the approval queue.</summary>
     public string? JoinNote { get; set; }
 
+    /// <summary>Opt-in: email me when I get a notification (reply, mention, DM, etc.).
+    /// Only sends when the member also has an <see cref="IdentityUser{TKey}.Email"/> set.</summary>
+    public bool EmailNotificationsEnabled { get; set; }
+
     // ---- Profile --------------------------------------------------------
 
     /// <summary>Bunny storage path/key of the member's avatar (null = default logo).</summary>
@@ -50,6 +54,9 @@ public class AppUser : IdentityUser<int>
     public string? TwitterUrl { get; set; }
     public string? SimpleXAddress { get; set; }
     public string? TelegramHandle { get; set; }
+
+    /// <summary>The member's own listing on monerica.com (shown with a Monerica badge).</summary>
+    public string? MonericaUrl { get; set; }
 
     /// <summary>Member's PGP public key (shown on their profile).</summary>
     public string? PgpPublicKey { get; set; }
@@ -65,6 +72,33 @@ public class AppUser : IdentityUser<int>
     public string? Link2Url { get; set; }
     public string? Link3Label { get; set; }
     public string? Link3Url { get; set; }
+
+    // ---- End-to-end encryption (private messages) -----------------------
+    // All key material is generated in the browser. The server only ever holds the
+    // PUBLIC keys (a directory) plus PRIVATE keys already WRAPPED (encrypted) under a
+    // key derived from the member's password — it can never unwrap them. A DB dump is
+    // therefore useless for reading messages. See e2ee.js / the threat-model page.
+
+    /// <summary>Base64 SPKI of the member's long-term ECDH P-256 public key (encryption).</summary>
+    public string? EncPublicKey { get; set; }
+
+    /// <summary>Base64 SPKI of the member's long-term ECDSA P-256 public key (signatures).</summary>
+    public string? SignPublicKey { get; set; }
+
+    /// <summary>Base64 salt for the PBKDF2 that turns the password into the key-wrapping key (KEK).</summary>
+    public string? KdfSalt { get; set; }
+
+    /// <summary>Private keys wrapped (AES-GCM) under the password-derived KEK — JSON {iv,ct}. Opaque to the server.</summary>
+    public string? WrappedPrivateKeys { get; set; }
+
+    /// <summary>Base64 salt for deriving the wrapping key from the one-time recovery code.</summary>
+    public string? RecoverySalt { get; set; }
+
+    /// <summary>Private keys wrapped under the recovery code — the "forgot password" escape hatch. Opaque to the server.</summary>
+    public string? RecoveryWrappedPrivateKeys { get; set; }
+
+    /// <summary>When the member first set up E2EE keys (null = not set up yet).</summary>
+    public DateTime? E2eeEnabledUtc { get; set; }
 
     // ---- Navigation -----------------------------------------------------
 

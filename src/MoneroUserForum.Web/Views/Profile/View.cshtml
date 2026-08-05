@@ -49,6 +49,9 @@
             else if (!string.IsNullOrWhiteSpace(Model.TwitterUrl)) { <li>X / Twitter: @Model.TwitterUrl</li> }
             @if (!string.IsNullOrWhiteSpace(Model.SimpleXAddress)) { <li>SimpleX: <span style="word-break:break-all;">@Model.SimpleXAddress</span></li> }
             @if (!string.IsNullOrWhiteSpace(Model.TelegramHandle)) { <li>Telegram: @Model.TelegramHandle</li> }
+            @{ var msafe = SafeHttpUrl(Model.MonericaUrl); }
+            @if (msafe != null) { <li>Monerica listing: <a href="@msafe" target="_blank" rel="nofollow noopener">@Model.MonericaUrl</a></li> }
+            else if (!string.IsNullOrWhiteSpace(Model.MonericaUrl)) { <li>Monerica listing: @Model.MonericaUrl</li> }
             @foreach (var (label, url) in CustomLinks())
             {
                 var safe = SafeHttpUrl(url);
@@ -97,5 +100,6 @@
     bool HasAnyLinks() =>
         !string.IsNullOrWhiteSpace(Model.WebsiteUrl) || !string.IsNullOrWhiteSpace(Model.TwitterUrl)
         || !string.IsNullOrWhiteSpace(Model.SimpleXAddress) || !string.IsNullOrWhiteSpace(Model.TelegramHandle)
+        || !string.IsNullOrWhiteSpace(Model.MonericaUrl)
         || CustomLinks().Any();
 }

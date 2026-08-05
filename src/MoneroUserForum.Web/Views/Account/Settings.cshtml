@@ -2,6 +2,7 @@
     ViewData["Title"] = "Settings";
     var hasEmail = ViewBag.HasEmail == true;
     string? email = ViewBag.Email as string;
+    var emailNotif = ViewBag.EmailNotificationsEnabled == true;
 }
 <h1>Account settings</h1>
 <p class="muted">Change your password or username, set an optional recovery email, or delete your account.</p>
@@ -69,6 +70,34 @@
         </div>
         <button type="submit" class="btn">Save email</button>
     </form>
+</div>
+
+<div class="panel">
+    <h2 class="panel-title">Email notifications</h2>
+    <p class="muted" style="margin-top:0;">
+        Get an email when someone replies to you, mentions you, sends you a message, or posts in a thread you follow.
+        Emails never contain message contents — private messages are end-to-end encrypted — just a heads-up to log in.
+    </p>
+    @if (!hasEmail)
+    {
+        <p class="hint">Add a recovery email above first, then you can turn these on.</p>
+    }
+    else if (emailNotif)
+    {
+        <p>Email notifications are <strong>on</strong> (sent to @email).</p>
+        <form asp-action="SetEmailNotifications" method="post" class="form-narrow">
+            <input type="hidden" name="enabled" value="false" />
+            <button type="submit" class="btn">Turn off</button>
+        </form>
+    }
+    else
+    {
+        <p>Email notifications are <strong>off</strong>.</p>
+        <form asp-action="SetEmailNotifications" method="post" class="form-narrow">
+            <input type="hidden" name="enabled" value="true" />
+            <button type="submit" class="btn btn-primary">Turn on</button>
+        </form>
+    }
 </div>
 
 <div class="panel" style="border-color: rgba(255,82,82,.35);">

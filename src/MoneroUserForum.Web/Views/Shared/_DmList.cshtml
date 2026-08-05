@@ -10,7 +10,15 @@ else
         {
             <div class="dm-bubble @(m.FromMe ? "me" : "them")">
                 <div class="dm-time">@TimeAgo(m.CreatedAtUtc)</div>
-                <div class="dm-text">@m.Body</div>
+                @if (!string.IsNullOrEmpty(m.Envelope))
+                {
+                    @* Ciphertext only. e2ee-messages.js decrypts in-browser and fills textContent. *@
+                    <div class="dm-text dm-enc" data-envelope="@m.Envelope">🔒 decrypting…</div>
+                }
+                else
+                {
+                    <div class="dm-text">@m.Body</div>
+                }
             </div>
         }
     </div>

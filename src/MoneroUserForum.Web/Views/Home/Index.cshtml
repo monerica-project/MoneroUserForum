@@ -30,6 +30,7 @@
     </div>
 </div>
 <aside class="thread-side">
+    @await Component.InvokeAsync("MoneroPrice")
     @await Component.InvokeAsync("Sponsors", new { side = true })
 </aside>
 </div>

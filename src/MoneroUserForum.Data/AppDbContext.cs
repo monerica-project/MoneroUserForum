@@ -22,6 +22,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
     public DbSet<ThreadView> ThreadViews => this.Set<ThreadView>();
     public DbSet<Report> Reports => this.Set<Report>();
     public DbSet<PostThank> PostThanks => this.Set<PostThank>();
+    public DbSet<ContactMessage> ContactMessages => this.Set<ContactMessage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -89,6 +90,13 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
         {
             e.HasIndex(x => x.CreatedAtUtc);
             e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ContactMessage>(e =>
+        {
+            e.Property(x => x.FromName).HasMaxLength(80);
+            e.Property(x => x.FromEmail).HasMaxLength(255);
+            e.HasIndex(x => new { x.IsHandled, x.CreatedAtUtc });
         });
 
         b.Entity<Report>(e =>

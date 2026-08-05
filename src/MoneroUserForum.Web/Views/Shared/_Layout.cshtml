@@ -43,9 +43,15 @@
     <link rel="icon" type="image/png" href="~/img/muf-mark.png" />
     <link rel="apple-touch-icon" href="~/img/muf-mark.png" />
     <link rel="stylesheet" href="~/css/muf.css" asp-append-version="true" />
+    @if (authed)
+    {
+        <meta name="muf-user-id" content="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)" />
+    }
     <script src="~/js/editor.js" asp-append-version="true" defer></script>
     <script src="~/js/search-suggest.js" asp-append-version="true" defer></script>
     <script src="~/js/confirm.js" asp-append-version="true" defer></script>
+    <script src="~/js/e2ee.js" asp-append-version="true" defer></script>
+    <script src="~/js/e2ee-auth.js" asp-append-version="true" defer></script>
 </head>
 <body>
     <header class="site-header">
@@ -123,6 +129,7 @@
         <div class="inner">
             <span class="nav-links">
                 <a asp-controller="Home" asp-action="About">About</a>
+                <a asp-controller="Contact" asp-action="Index">Contact</a>
                 <a asp-controller="Sponsors" asp-action="Index">Sponsors</a>
                 <a asp-controller="Home" asp-action="Network">Network</a>
             </span>

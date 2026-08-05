@@ -10,6 +10,10 @@
         <div style="font-size:30px;font-weight:800;color:@(Model.ReportsPending > 0 ? "#ff8a8a" : "inherit");">@Model.ReportsPending</div>
         <div class="muted">Reported posts</div>
     </a>
+    <a class="panel" style="margin:0;text-align:center;" asp-action="Messages">
+        <div style="font-size:30px;font-weight:800;color:@(Model.ContactUnread > 0 ? "var(--mono-orange)" : "inherit");">@Model.ContactUnread</div>
+        <div class="muted">Contact inbox</div>
+    </a>
     <a class="panel" style="margin:0;text-align:center;" asp-action="Members">
         <div style="font-size:30px;font-weight:800;">@Model.MemberCount</div>
         <div class="muted">Members</div>
@@ -30,5 +34,6 @@
 <div class="panel">
     <a class="btn btn-primary" asp-action="Approvals">Review @Model.PendingCount pending</a>
     <a class="btn" asp-action="Reports">Reported posts (@Model.ReportsPending)</a>
+    <a class="btn" asp-action="Messages">Contact inbox (@Model.ContactUnread)</a>
     <a class="btn" asp-action="Members">Manage members</a>
 </div>

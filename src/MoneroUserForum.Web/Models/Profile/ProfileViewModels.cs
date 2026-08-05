@@ -17,6 +17,7 @@ public class ProfileViewModel
     public string? TwitterUrl { get; set; }
     public string? SimpleXAddress { get; set; }
     public string? TelegramHandle { get; set; }
+    public string? MonericaUrl { get; set; }
     public string? PgpPublicKey { get; set; }
     public string? Signature { get; set; }
     public string? MoneroDonationAddress { get; set; }
@@ -55,6 +56,11 @@ public class ProfileEditViewModel
     [StringLength(64)]
     [Display(Name = "Telegram handle")]
     public string? TelegramHandle { get; set; }
+
+    [StringLength(2048)]
+    [Url]
+    [Display(Name = "Your monerica.com link")]
+    public string? MonericaUrl { get; set; }
 
     [StringLength(8000)]
     [Display(Name = "PGP public key")]

@@ -32,6 +32,15 @@ public class RegisterViewModel
     [Required]
     [Display(Name = "Spam check")]
     public string CaptchaAnswer { get; set; } = string.Empty;
+
+    // E2EE key material, generated in the browser by e2ee.js and injected as hidden
+    // fields on submit. Opaque to the server (private keys arrive already wrapped).
+    public string? EncPublicKey { get; set; }
+    public string? SignPublicKey { get; set; }
+    public string? KdfSalt { get; set; }
+    public string? WrappedPrivateKeys { get; set; }
+    public string? RecoverySalt { get; set; }
+    public string? RecoveryWrappedPrivateKeys { get; set; }
 }
 
 public class LoginViewModel
@@ -126,4 +135,19 @@ public class DeleteAccountViewModel
 
     [Display(Name = "Yes, permanently delete my account and hide my posts")]
     public bool Confirm { get; set; }
+}
+
+/// <summary>
+/// Browser-generated E2EE key material posted to /account/e2ee-setup. All fields are
+/// opaque base64/JSON produced by e2ee.js; the server stores them but can never read
+/// the private keys (they are wrapped under the member's password / recovery code).
+/// </summary>
+public class E2eeSetupModel
+{
+    public string? EncPublicKey { get; set; }
+    public string? SignPublicKey { get; set; }
+    public string? KdfSalt { get; set; }
+    public string? WrappedPrivateKeys { get; set; }
+    public string? RecoverySalt { get; set; }
+    public string? RecoveryWrappedPrivateKeys { get; set; }
 }

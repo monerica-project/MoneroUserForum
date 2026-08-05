@@ -36,3 +36,6 @@ DataProtection-Keys/
 
 # ---- Scratch / reference images dropped in the repo root ----
 Screenshot*.png
+
+# Local admin credentials — never commit
+ADMIN-LOGIN.txt
