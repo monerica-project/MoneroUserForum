@@ -32,7 +32,7 @@ public class SearchController : Controller
 
         var pattern = "%" + query.Replace("%", "\\%").Replace("_", "\\_") + "%";
         var items = await this.db.ForumThreads
-            .Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && EF.Functions.ILike(t.Title, pattern))
+            .Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && t.Author!.IsApproved && EF.Functions.ILike(t.Title, pattern))
             .OrderByDescending(t => t.LastPostAtUtc)
             .Take(8)
             .Select(t => new { title = t.Title, slug = t.Slug })
@@ -56,7 +56,7 @@ public class SearchController : Controller
         var pattern = "%" + query.Replace("%", "\\%").Replace("_", "\\_") + "%";
 
         vm.Threads = await this.db.ForumThreads
-            .Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && EF.Functions.ILike(t.Title, pattern))
+            .Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && t.Author!.IsApproved && EF.Functions.ILike(t.Title, pattern))
             .OrderByDescending(t => t.LastPostAtUtc)
             .Take(25)
             .Select(t => new ThreadListItem
@@ -66,14 +66,14 @@ public class SearchController : Controller
                 Category = t.Category,
                 AuthorName = t.Author!.DisplayName,
                 AuthorBanned = t.Author.IsBanned,
-                ReplyCount = t.Posts.Count(p => !p.IsOpeningPost && !p.Author!.IsDeleted),
+                ReplyCount = t.Posts.Count(p => !p.IsOpeningPost && !p.Author!.IsDeleted && p.Author!.IsApproved),
                 CreatedAtUtc = t.CreatedAtUtc,
                 LastPostAtUtc = t.LastPostAtUtc,
                 UniqueViews = t.Views.Count,
-                PostCount = t.Posts.Count,
-                LastPostId = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Id).FirstOrDefault(),
-                LastPosterName = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.DisplayName).FirstOrDefault(),
-                LastPosterAvatarPath = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.AvatarPath).FirstOrDefault(),
+                PostCount = t.Posts.Count(p => p.Author!.IsApproved),
+                LastPostId = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Id).FirstOrDefault(),
+                LastPosterName = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.DisplayName).FirstOrDefault(),
+                LastPosterAvatarPath = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.AvatarPath).FirstOrDefault(),
             })
             .ToListAsync();
 
@@ -85,8 +85,8 @@ public class SearchController : Controller
         }
 
         var postRows = await this.db.Posts
-            .Where(p => !p.IsDeleted && !p.IsCensored && !p.Author!.IsDeleted && !p.Author.IsBanned
-                        && !p.Thread!.IsDeleted && !p.Thread.IsCensored && EF.Functions.ILike(p.Body, pattern))
+            .Where(p => !p.IsDeleted && !p.IsCensored && !p.Author!.IsDeleted && !p.Author.IsBanned && p.Author.IsApproved
+                        && !p.Thread!.IsDeleted && !p.Thread.IsCensored && p.Thread.Author!.IsApproved && EF.Functions.ILike(p.Body, pattern))
             .OrderByDescending(p => p.CreatedAtUtc)
             .Take(25)
             .Select(p => new

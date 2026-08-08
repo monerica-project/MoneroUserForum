@@ -50,14 +50,20 @@ public class ComposeViewModel
     [Display(Name = "To (username)")]
     public string ToUsername { get; set; } = string.Empty;
 
-    /// <summary>Plaintext is only ever read in the browser; it is never posted to the server.</summary>
+    /// <summary>
+    /// Plaintext message. On browsers that support end-to-end encryption this is cleared before
+    /// submit and never posted (the ciphertext goes in <see cref="Envelope"/> instead). On browsers
+    /// WITHOUT WebCrypto/IndexedDB (e.g. some private/Tor windows, or .onion over http) it is posted
+    /// as-is so the message can still be delivered — stored server-side, NOT end-to-end encrypted.
+    /// </summary>
+    [StringLength(20000)]
     public string? Body { get; set; }
 
     /// <summary>
-    /// The end-to-end-encrypted envelope produced by e2ee.js. This is what the server
-    /// stores — it never sees the plaintext. Required (a message can't be sent unencrypted).
+    /// The end-to-end-encrypted envelope produced by e2ee.js, when the browser can encrypt. This is
+    /// what the server stores in that case — it never sees the plaintext. Optional: when it is absent
+    /// the server falls back to storing <see cref="Body"/> as an unencrypted message.
     /// </summary>
-    [Required(ErrorMessage = "Your message could not be encrypted. Make sure your browser supports encryption and you're logged in.")]
     [StringLength(200000)]
     public string Envelope { get; set; } = string.Empty;
 }

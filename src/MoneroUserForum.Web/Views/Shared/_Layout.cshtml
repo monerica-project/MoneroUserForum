@@ -48,6 +48,7 @@
         <meta name="muf-user-id" content="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)" />
     }
     <script src="~/js/editor.js" asp-append-version="true" defer></script>
+    <script src="~/js/yt-embed.js" asp-append-version="true" defer></script>
     <script src="~/js/search-suggest.js" asp-append-version="true" defer></script>
     <script src="~/js/confirm.js" asp-append-version="true" defer></script>
     <script src="~/js/e2ee.js" asp-append-version="true" defer></script>
@@ -113,7 +114,7 @@
         }
         @if (authed && !User.HasClaim("approved", "true") && !User.HasClaim("banned", "true"))
         {
-            <div class="alert alert-info">Your account is awaiting admin approval. You can read the forum now; posting unlocks once you're approved.</div>
+            <div class="alert alert-info">Your account is awaiting admin approval. You can post now — but your threads and replies stay hidden from other members until you're approved, then they go live automatically.</div>
         }
         @if (User.HasClaim("banned", "true"))
         {
@@ -129,6 +130,7 @@
         <div class="inner">
             <span class="nav-links">
                 <a asp-controller="Home" asp-action="About">About</a>
+                <a asp-controller="Home" asp-action="Members">Stats</a>
                 <a asp-controller="Contact" asp-action="Index">Contact</a>
                 <a asp-controller="Sponsors" asp-action="Index">Sponsors</a>
                 <a asp-controller="Home" asp-action="Network">Network</a>

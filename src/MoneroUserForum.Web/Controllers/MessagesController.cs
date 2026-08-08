@@ -150,6 +150,11 @@ public class MessagesController : Controller
         return this.PartialView("_DmList", messages);
     }
 
+    /// <summary>How the end-to-end encryption works + its exact guarantees and limits.</summary>
+    [HttpGet("encryption")]
+    [AllowAnonymous]
+    public IActionResult Encryption() => this.View();
+
     /// <summary>Public keys for a member, so the sender's browser can encrypt to them.
     /// 404 if the member hasn't set up encryption keys yet.</summary>
     [HttpGet("pubkey/{name}")]
@@ -291,14 +296,25 @@ public class MessagesController : Controller
             return this.View("Compose", model);
         }
 
-        // Store ONLY the browser-produced ciphertext envelope. The plaintext never reaches
-        // the server (the Body field is left empty for all new messages).
+        // Preferred path: store ONLY the browser-produced ciphertext envelope — the plaintext never
+        // reaches the server. Fallback path: browsers without WebCrypto/IndexedDB (some private/Tor
+        // windows, or .onion over http) can't encrypt, so they post the plaintext Body and we store
+        // it unencrypted so the message can still be delivered.
+        var hasEnvelope = !string.IsNullOrWhiteSpace(model.Envelope);
+        var plaintext = (model.Body ?? string.Empty).Trim();
+
+        if (!hasEnvelope && plaintext.Length == 0)
+        {
+            this.ModelState.AddModelError(nameof(model.Body), "Enter a message to send.");
+            return this.View("Compose", model);
+        }
+
         var pm = new PrivateMessage
         {
             SenderId = me,
             RecipientId = partner.Id,
-            Body = string.Empty,
-            EncryptedEnvelope = model.Envelope,
+            Body = hasEnvelope ? string.Empty : plaintext,
+            EncryptedEnvelope = hasEnvelope ? model.Envelope : null,
             CreatedAtUtc = DateTime.UtcNow,
         };
         this.db.PrivateMessages.Add(pm);

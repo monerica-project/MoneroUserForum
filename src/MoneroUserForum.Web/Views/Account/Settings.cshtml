@@ -26,7 +26,9 @@
 
 <div class="panel">
     <h2 class="panel-title">Change password</h2>
-    <form asp-action="ChangePassword" method="post" class="form-narrow">
+    <p class="hint" style="margin-top:0;">Your encrypted messages are re-secured to the new password automatically.
+        Locked out of past messages after a reset? <a asp-action="RecoverKeys">Restore with your recovery code</a>.</p>
+    <form id="change-password-form" asp-action="ChangePassword" method="post" class="form-narrow">
         <div asp-validation-summary="All" class="text-danger"></div>
         <div class="form-group">
             <label>Current password</label>
@@ -102,17 +104,6 @@
 
 <div class="panel" style="border-color: rgba(255,82,82,.35);">
     <h2 class="panel-title" style="color:#ff8a8a;">Delete account</h2>
-    <p class="muted">This hides your profile and blacks out all your posts. It cannot be undone.</p>
-    <form asp-action="DeleteAccount" method="post" class="form-narrow">
-        <div class="form-group">
-            <label>Current password</label>
-            <input type="password" name="CurrentPassword" autocomplete="current-password" />
-        </div>
-        <div class="form-group">
-            <label style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--fg)">
-                <input type="checkbox" name="Confirm" value="true" style="width:auto" /> Yes, permanently delete my account and hide my posts
-            </label>
-        </div>
-        <button type="submit" class="btn btn-danger">Delete my account</button>
-    </form>
+    <p class="muted">This hides your profile and blacks out all your posts. It cannot be undone, so it lives on its own confirmation page.</p>
+    <a class="btn btn-danger" asp-action="DeleteAccount">Delete account…</a>
 </div>

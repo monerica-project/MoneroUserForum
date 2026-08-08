@@ -14,6 +14,7 @@
             </h1>
             <div class="thread-meta">
                 <span class="rep">@Describe(Model.Reputation)</span> · @Model.PostCount posts · joined @TimeAgo(Model.JoinedAtUtc)
+                <time datetime="@Model.JoinedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" style="font-size:11px;opacity:.65;margin-left:6px;" title="Joined (UTC)">@Model.JoinedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")</time>
             </div>
             @if (Model.IsSelf)
             {

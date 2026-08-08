@@ -1,7 +1,16 @@
 @model CreateThreadViewModel
 @{ ViewData["Title"] = "New thread"; }
-<div class="panel" style="max-width:720px;">
+<div class="thread-layout">
+<div class="thread-main">
+<div class="panel">
     <h1>Start a new thread</h1>
+    @if (User.Identity?.IsAuthenticated == true && !User.HasClaim("approved", "true") && !User.HasClaim("banned", "true"))
+    {
+        <p class="muted" style="border-left:3px solid var(--mono-orange,#f26822);padding:8px 12px;margin:0 0 14px;">
+            ⏳ You can post now, but your thread stays hidden from other members until an admin approves your
+            account. It goes live automatically once you're approved — so go ahead and share what you came to say.
+        </p>
+    }
     <form asp-action="Create" method="post" enctype="multipart/form-data">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
         @if (ViewBag.ExistingSlug is string existingSlug)
@@ -19,7 +28,7 @@
         <div class="form-group">
             <label asp-for="Category"></label>
             <select asp-for="Category">
-                @foreach (var c in Enum.GetValues<ForumCategory>().Where(x => x != ForumCategory.Unknown))
+                @foreach (var c in Enum.GetValues<ForumCategory>().Where(x => x != ForumCategory.Unknown).OrderBy(x => Describe(x), StringComparer.OrdinalIgnoreCase))
                 {
                     <option value="@c">@Describe(c)</option>
                 }
@@ -29,6 +38,7 @@
             <label asp-for="Body"></label>
             <textarea asp-for="Body" rows="10" class="md-editor" placeholder="Write your post… @@mention someone to notify them. Highlight text and click 🔗 to add a link."></textarea>
             <span asp-validation-for="Body" class="text-danger"></span>
+            @await Html.PartialAsync("_FormattingHelp")
         </div>
         @if (ViewBag.CanPostImages is true)
         {
@@ -44,4 +54,10 @@
         }
         <button type="submit" class="btn btn-primary">Post thread</button>
     </form>
+</div>
+</div>
+<aside class="thread-side">
+    @await Component.InvokeAsync("MoneroPrice")
+    @await Component.InvokeAsync("Sponsors", new { side = true })
+</aside>
 </div>

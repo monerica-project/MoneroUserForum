@@ -23,6 +23,7 @@
             <a class="btn btn-sm" asp-controller="Profile" asp-action="View" asp-route-name="@Model.PartnerName">View Profile</a>
         </div>
 
+        <div id="dm-status" role="alert" style="display:none;"></div>
         <div class="panel">
             <div id="dm-log" class="chat-log" data-partner="@Model.PartnerName">
                 @await Html.PartialAsync("_DmList", Model.Messages)

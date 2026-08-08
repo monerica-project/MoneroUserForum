@@ -1,13 +1,13 @@
 @model ThreadListViewModel
 @{
     ViewData["Title"] = Model.Heading;
-    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+    var canContribute = (User.Identity?.IsAuthenticated ?? false) && !User.HasClaim("banned", "true");
 }
 <div class="panel">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
-        <h1 style="margin:0;"><span class="chip chip-cat">@Model.Heading</span></h1>
+        <h1 style="margin:0;"><span class="chip chip-cat cat-@Model.Category">@Model.Heading</span></h1>
         <span style="flex:1"></span>
-        @if (canPost)
+        @if (canContribute)
         {
             <a class="btn btn-primary" asp-controller="Thread" asp-action="Create" asp-route-category="@Model.Category">New thread</a>
         }

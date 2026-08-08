@@ -18,8 +18,15 @@ else
                     <a asp-controller="Thread" asp-action="View" asp-route-slug="@t.Slug">@t.Title</a>
                 </div>
                 <div class="thread-meta">
-                    <span class="chip chip-cat">@Describe(t.Category)</span>
-                    &nbsp;by @(t.AuthorBanned ? "[banned]" : t.AuthorName) · started @TimeAgo(t.CreatedAtUtc)
+                    <a class="chip chip-cat cat-@t.Category" asp-controller="Thread" asp-action="Category" asp-route-category="@t.Category">@Describe(t.Category)</a>
+                    &nbsp;by @if (t.AuthorBanned)
+                    {
+                        <text>[banned]</text>
+                    }
+                    else
+                    {
+                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.AuthorName">@t.AuthorName</a>
+                    } · started @TimeAgo(t.CreatedAtUtc)
                 </div>
             </div>
             <div class="thread-row-stats">
@@ -32,7 +39,7 @@ else
                     }
                     else
                     {
-                        <img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />@t.LastPosterName
+                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.LastPosterName" class="lastby-link"><img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />@t.LastPosterName</a>
                     }
                     · @TimeAgo(t.LastPostAtUtc)
                 </div>

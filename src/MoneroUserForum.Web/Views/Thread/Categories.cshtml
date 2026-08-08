@@ -8,7 +8,7 @@
     @foreach (var c in Model)
     {
         <a class="panel" style="display:block;margin:0;" asp-controller="Thread" asp-action="Category" asp-route-category="@c">
-            <div class="chip chip-cat" style="margin-bottom:8px;">@Describe(c)</div>
+            <div class="chip chip-cat cat-@c" style="margin-bottom:8px;">@Describe(c)</div>
             <div class="muted" style="font-size:13px;">
                 @switch (c)
                 {

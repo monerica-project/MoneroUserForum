@@ -25,4 +25,7 @@ public enum ForumCategory
 
     [Description("Exchange Talk")]
     ExchangeTalk = 5,
+
+    [Description("Business Discussion")]
+    BusinessDiscussion = 6,
 }

@@ -1,0 +1,115 @@
+@model MoneroUserForum.Web.Models.Forum.ForumStatsViewModel
+@{
+    ViewData["Title"] = "Forum statistics";
+    ViewData["Description"] = "Community stats for the Monero User Forum — total members, the newest member, and the top 25 contributors by threads and replies.";
+    string Iso(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm'Z'");
+    string IsoFull(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:ss'Z'");
+}
+
+<div class="panel">
+    <h1 style="margin:0 0 4px;">Forum <span class="accent">statistics</span></h1>
+    <p class="muted" style="margin:0;">Community activity at a glance, and the members who contribute the most.</p>
+
+    <div class="stat-grid" style="margin-top:14px;">
+        <div class="stat-box">
+            <div class="stat-num">@Model.TotalMembers.ToString("N0")</div>
+            <div class="stat-lbl">Members</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-num">@Model.TotalThreads.ToString("N0")</div>
+            <div class="stat-lbl">Threads</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-num">@Model.TotalPosts.ToString("N0")</div>
+            <div class="stat-lbl">Posts</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.NewestMemberName))
+    {
+        <div class="newest-member" style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">Newest member</span>
+            <a class="member-cell" asp-controller="Profile" asp-action="View" asp-route-name="@Model.NewestMemberName" style="display:inline-flex;align-items:center;gap:8px;">
+                @if (!string.IsNullOrEmpty(Model.NewestMemberAvatarUrl))
+                {
+                    <img class="avatar" src="@Model.NewestMemberAvatarUrl" alt="" width="26" height="26" loading="lazy" />
+                }
+                else
+                {
+                    <span class="avatar avatar-fallback" aria-hidden="true">@(Model.NewestMemberName.Substring(0, 1).ToUpperInvariant())</span>
+                }
+                <strong>@Model.NewestMemberName</strong>
+            </a>
+            @if (Model.NewestMemberJoinedUtc is DateTime nj)
+            {
+                <span class="muted">joined @TimeAgo(nj)</span>
+                <time datetime="@IsoFull(nj)" style="font-size:11px;opacity:.65;" title="Joined (UTC)">@Iso(nj)</time>
+            }
+        </div>
+    }
+</div>
+
+<div class="panel">
+    <h2 class="panel-title" style="margin-top:0;">Top contributors</h2>
+    <p class="muted" style="margin:0 0 10px;">The top @Model.Top.Count members ranked by overall content contributed — threads started plus replies.</p>
+</div>
+
+@if (Model.Top.Count == 0)
+{
+    <div class="panel"><p class="muted" style="margin:0;">No contributions to rank yet.</p></div>
+}
+else
+{
+    <div class="panel" style="padding:0;overflow-x:auto;">
+        <table class="member-table">
+            <thead>
+                <tr>
+                    <th style="width:44px;text-align:right;">#</th>
+                    <th>Member</th>
+                    <th style="text-align:right;">Threads</th>
+                    <th style="text-align:right;">Replies</th>
+                    <th style="text-align:right;">Total</th>
+                    <th style="text-align:right;">Thanks</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Model.Top)
+                {
+                    <tr>
+                        <td style="text-align:right;color:var(--fg-dim);font-weight:700;">@m.Rank</td>
+                        <td>
+                            <a class="member-cell" asp-controller="Profile" asp-action="View" asp-route-name="@m.DisplayName">
+                                @if (!string.IsNullOrEmpty(m.AvatarUrl))
+                                {
+                                    <img class="avatar" src="@m.AvatarUrl" alt="" width="30" height="30" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span class="avatar avatar-fallback" aria-hidden="true">@(string.IsNullOrEmpty(m.DisplayName) ? "?" : m.DisplayName.Substring(0, 1).ToUpperInvariant())</span>
+                                }
+                                <span class="member-name">@m.DisplayName</span>
+                            </a>
+                        </td>
+                        <td style="text-align:right;">@m.ThreadCount.ToString("N0")</td>
+                        <td style="text-align:right;">@m.ReplyCount.ToString("N0")</td>
+                        <td style="text-align:right;font-weight:700;">@m.TotalContent.ToString("N0")</td>
+                        <td style="text-align:right;">@(m.ThanksCount > 0 ? "☆ " + m.ThanksCount.ToString("N0") : "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<style>
+    .stat-grid { display:flex; gap:10px; flex-wrap:wrap; }
+    .stat-box { flex:1 1 120px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center; }
+    .stat-num { font-size:1.6rem; font-weight:800; color:var(--fg); line-height:1.1; }
+    .stat-lbl { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-dim); margin-top:2px; }
+    .member-table { width:100%; border-collapse:collapse; }
+    .member-table th, .member-table td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .member-table thead th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-dim); background:var(--bg-2); }
+    .member-table tbody tr:last-child td { border-bottom:0; }
+    .member-cell { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--mono-orange-2); }
+    .member-cell:hover .member-name { text-decoration:underline; }
+</style>

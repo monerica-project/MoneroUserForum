@@ -333,10 +333,61 @@
         });
     }
 
+    // Re-wrap the private-key bundle under a NEW password (used when the member changes their
+    // password) — otherwise the wrapped blob stays locked to the old password and messages are
+    // lost. Pure symmetric re-encryption of the opaque blob; no key import needed. Also refreshes
+    // this device's cached keys. Returns { newKdfSalt, newWrappedPrivateKeys } to store server-side.
+    function rewrapForNewPassword(userId, oldPassword, newPassword, keyRecord) {
+        var newSalt = b64(rand(16));
+        return Promise.all([
+            deriveKekFromPassword(oldPassword, keyRecord.kdfSalt),
+            deriveKekFromPassword(newPassword, newSalt)
+        ]).then(function (keks) {
+            var w = JSON.parse(keyRecord.wrappedPrivateKeys);
+            return subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(unb64(w.iv)) }, keks[0], unb64(w.ct))
+                .then(function (plain) {
+                    var iv = rand(12);
+                    return subtle.encrypt({ name: 'AES-GCM', iv: iv }, keks[1], plain).then(function (ct) {
+                        var newWrapped = JSON.stringify({ iv: b64(iv), ct: b64(ct) });
+                        return unwrapPrivateBundle(keks[1], newWrapped).then(function (priv) {
+                            return storeSelf(userId, priv.encPriv, priv.signPriv, keyRecord.encPublicKey, keyRecord.signPublicKey)
+                                .then(function () { return { newKdfSalt: newSalt, newWrappedPrivateKeys: newWrapped }; });
+                        });
+                    });
+                });
+        });
+    }
+
+    // Restore access with the one-time recovery code (after a password reset orphaned the
+    // password-wrapped copy): unwrap the recovery copy with the code, cache the keys, and
+    // re-wrap under the member's NEW password. Returns { newKdfSalt, newWrappedPrivateKeys }.
+    function unlockWithRecoveryCode(userId, codeDisplay, newPassword, keyRecord) {
+        var codeBytes = recoveryBytesFrom(codeDisplay);
+        return deriveKeyFromRecovery(codeBytes, keyRecord.recoverySalt).then(function (recKey) {
+            var w = JSON.parse(keyRecord.recoveryWrappedPrivateKeys);
+            return subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(unb64(w.iv)) }, recKey, unb64(w.ct))
+                .then(function (plain) {
+                    var newSalt = b64(rand(16));
+                    return deriveKekFromPassword(newPassword, newSalt).then(function (newKek) {
+                        var iv = rand(12);
+                        return subtle.encrypt({ name: 'AES-GCM', iv: iv }, newKek, plain).then(function (ct) {
+                            var newWrapped = JSON.stringify({ iv: b64(iv), ct: b64(ct) });
+                            return unwrapPrivateBundle(newKek, newWrapped).then(function (priv) {
+                                return storeSelf(userId, priv.encPriv, priv.signPriv, keyRecord.encPublicKey, keyRecord.signPublicKey)
+                                    .then(function () { return { newKdfSalt: newSalt, newWrappedPrivateKeys: newWrapped }; });
+                            });
+                        });
+                    });
+                });
+        });
+    }
+
     window.E2EE = {
         supported: supported,
         createIdentityPayload: createIdentityPayload,
         unlockWithPassword: unlockWithPassword,
+        rewrapForNewPassword: rewrapForNewPassword,
+        unlockWithRecoveryCode: unlockWithRecoveryCode,
         loadSelf: loadSelf,
         clearSelf: clearSelf,
         tagUserId: tagUserId,

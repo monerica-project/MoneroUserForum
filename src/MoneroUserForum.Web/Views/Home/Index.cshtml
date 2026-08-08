@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = null;
     ViewData["Description"] = "The latest Monero discussions — price talk, technical help, and general chat. A privacy-first forum for Monero users: no email required, works over Tor.";
-    var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
+    var canContribute = (User.Identity?.IsAuthenticated ?? false) && !User.HasClaim("banned", "true");
 }
 
 <div class="thread-layout">
@@ -12,24 +12,51 @@
             <h1 style="margin:0;">@Model.Heading</h1>
             <span class="nav-spacer" style="flex:1"></span>
             <a class="btn" asp-controller="Thread" asp-action="Categories">Browse categories</a>
-            @if (canPost)
+            @if (canContribute)
             {
                 <a class="btn btn-primary" asp-controller="Thread" asp-action="Create">New thread</a>
             }
+        </div>
+        <div class="sort-bar">
+            <span class="muted">Sort:</span>
+            <a asp-controller="Home" asp-action="Index" asp-route-sort="recent" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Recent</a>
+            <a asp-controller="Home" asp-action="Index" asp-route-sort="views" class="sort-link @(Model.Sort == "views" ? "active" : null)">Most viewed</a>
+            <a asp-controller="Home" asp-action="Index" asp-route-sort="replies" class="sort-link @(Model.Sort == "replies" ? "active" : null)">Most replies</a>
         </div>
         @await Html.PartialAsync("_ThreadRows", Model.Threads)
 
         @if (Model.Page > 1 || Model.HasMore)
         {
             <div style="display:flex;justify-content:space-between;margin-top:14px;">
-                <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+                <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-sort="@Model.Sort" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
                 <span class="muted" style="align-self:center;">Page @Model.Page</span>
-                <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+                <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-controller="Home" asp-action="Index" asp-route-sort="@Model.Sort" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
             </div>
         }
     </div>
 </div>
 <aside class="thread-side">
+    <div class="panel">
+        <h2 class="panel-title" style="margin-top:0;">Community</h2>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="font-size:1.6rem;font-weight:800;color:var(--fg);">@Model.TotalMembers.ToString("N0")</span>
+            <span class="muted">member@(Model.TotalMembers == 1 ? "" : "s")</span>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.NewestMemberName))
+        {
+            <div class="muted" style="margin-top:6px;font-size:13px;">
+                Newest:
+                <a asp-controller="Profile" asp-action="View" asp-route-name="@Model.NewestMemberName"><strong>@Model.NewestMemberName</strong></a>
+                @if (Model.NewestMemberJoinedUtc is DateTime nj)
+                {
+                    <text>· <time datetime="@nj.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" style="opacity:.75;" title="Joined (UTC)">@nj.ToString("yyyy-MM-ddTHH:mm'Z'")</time></text>
+                }
+            </div>
+        }
+        <div style="margin-top:10px;">
+            <a class="btn btn-sm btn-block" asp-controller="Home" asp-action="Members">View full stats →</a>
+        </div>
+    </div>
     @await Component.InvokeAsync("MoneroPrice")
     @await Component.InvokeAsync("Sponsors", new { side = true })
 </aside>

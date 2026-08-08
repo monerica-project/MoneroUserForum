@@ -29,6 +29,13 @@
                     <span class="rep">@Describe(m.Reputation)</span> · @m.PostCount posts · joined @TimeAgo(m.CreatedAtUtc)
                     @if (m.LastLoginAtUtc is DateTime ll) { <text>· last seen @TimeAgo(ll)</text> }
                 </div>
+                @if (!string.IsNullOrWhiteSpace(m.JoinNote))
+                {
+                    <div style="margin-top:6px;padding:7px 10px;border-left:3px solid var(--mono-orange,#f26822);background:rgba(255,122,26,.06);border-radius:4px;font-size:13px;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere;">
+                        <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;">Why they want to join</span><br />
+                        @m.JoinNote
+                    </div>
+                }
             </div>
             <div style="display:flex;gap:6px;">
                 @if (!m.IsApproved)

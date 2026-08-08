@@ -7,15 +7,37 @@
     ViewData["Description"] = $"{Model.Title} — {Describe(Model.Category)} on the Monero User Forum. {opText}".Trim();
     var canPost = User.HasClaim("approved", "true") && !User.HasClaim("banned", "true");
     var authed = User.Identity?.IsAuthenticated ?? false;
+    // May post/reply without approval (just not banned). Unapproved posts stay hidden until approved.
+    var canContribute = authed && !User.HasClaim("banned", "true");
+    var pendingApproval = canContribute && !canPost;
     int.TryParse(Context.Request.Query["replyto"], out var replyTo);
     var replyToPost = replyTo > 0 ? Model.Posts.FirstOrDefault(p => p.Id == replyTo) : null;
     var replyPrefill = (replyToPost != null && !replyToPost.AuthorDeleted && !replyToPost.AuthorBanned)
         ? $"@{replyToPost.AuthorName} "
         : string.Empty;
+
+    // Step the username font down by length so a long name always shows in full (never "…") in
+    // the narrow author column. On mobile the CSS resets it to full size (there's room there).
+    string WhoSize(string? s)
+    {
+        var n = (s ?? string.Empty).Length;
+        return n <= 13 ? string.Empty : n <= 15 ? "who-sm" : n <= 17 ? "who-xs" : "who-xxs";
+    }
 }
 
 <div class="thread-layout">
 <div class="thread-main">
+
+@if (Model.ThreadPending)
+{
+    <div class="panel" style="border-left:4px solid var(--mono-orange,#f26822);">
+        <strong>⏳ Pending approval</strong>
+        <p class="muted" style="margin:6px 0 0;">
+            Only you (and moderators) can see this thread. It goes live for everyone once an admin
+            approves your account. You can keep posting in the meantime.
+        </p>
+    </div>
+}
 
 <div class="panel">
     <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -34,12 +56,17 @@
                       style="display:flex;gap:6px;align-items:center;">
                     <select name="category" class="select select-sm" aria-label="Change category">
                         @foreach (var c in Enum.GetValues<MoneroUserForum.Data.Enums.ForumCategory>()
-                            .Where(c => c != MoneroUserForum.Data.Enums.ForumCategory.Unknown))
+                            .Where(c => c != MoneroUserForum.Data.Enums.ForumCategory.Unknown)
+                            .OrderBy(c => Describe(c), StringComparer.OrdinalIgnoreCase))
                         {
                             <option value="@c" selected="@(c == Model.Category)">@Describe(c)</option>
                         }
                     </select>
                     <button type="submit" class="btn btn-sm">Move</button>
+                </form>
+                <form asp-controller="Thread" asp-action="SetLock" asp-route-id="@Model.ThreadId" method="post">
+                    <input type="hidden" name="locked" value="@((!Model.IsLocked).ToString().ToLowerInvariant())" />
+                    <button type="submit" class="btn btn-sm">@(Model.IsLocked ? "🔓 Unlock thread" : "🔒 Lock thread")</button>
                 </form>
                 <form asp-controller="Thread" asp-action="DeleteThread" asp-route-id="@Model.ThreadId" method="post"
                       data-confirm="Permanently delete this entire thread and all its posts?">
@@ -71,11 +98,12 @@
                 <img class="avatar" src="@(p.AuthorDeleted ? Url.Content("~/img/muf-mark.png") : (p.AuthorAvatarUrl ?? Url.Content("~/img/muf-mark.png")))" alt="" />
                 @if (p.AuthorDeleted)
                 {
-                    <span class="who muted">[account deleted]</span>
+                    <span class="who muted @WhoSize("[account deleted]")">[account deleted]</span>
                 }
                 else
                 {
-                    <a class="who" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName">@(p.AuthorBanned ? "[banned]" : p.AuthorName)</a>
+                    var whoText = p.AuthorBanned ? "[banned]" : p.AuthorName;
+                    <a class="who @WhoSize(whoText)" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName">@whoText</a>
                     <span class="rep">@Describe(p.AuthorReputation)</span>
                     <span class="pcount"><b>@p.AuthorPostCount</b> post@(p.AuthorPostCount == 1 ? "" : "s")</span>
                     <span class="tcount"><b>@p.AuthorThanksReceived</b> thank@(p.AuthorThanksReceived == 1 ? "" : "s")</span>
@@ -89,6 +117,11 @@
                         <text>↳ in reply to <a href="#post-@rid">@(p.ReplyToAuthorName ?? "a post")</a> · </text>
                     }
                     @TimeAgo(p.CreatedAtUtc)
+                    <time datetime="@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" class="post-utc" style="font-size:11px;opacity:.65;margin-left:6px;" title="Exact time this post was made (UTC)">@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")</time>
+                    @if (p.IsPending)
+                    {
+                        <span class="pill" style="background:var(--mono-orange,#f26822);color:#111;border-radius:10px;padding:1px 8px;margin-left:6px;font-size:12px;" title="Hidden from other members until the account is approved">⏳ pending approval</span>
+                    }
                 </div>
 
                 @if (p.IsCensored)
@@ -123,8 +156,10 @@
             </div>
         </div>
         @{
-            var showReply = canPost && !Model.IsLocked && !p.AuthorDeleted && !p.IsDeleted && !p.IsCensored;
+            var showReply = canContribute && !Model.IsLocked && !p.AuthorDeleted && !p.IsDeleted && !p.IsCensored;
             var showMod = p.CanModify && !p.IsDeleted && !p.IsCensored;
+            // Edit is author-only (admins can't edit other people's posts — only delete/censor).
+            var showEdit = p.CanEdit && !p.IsDeleted && !p.IsCensored;
             // Per-post censor controls. Hidden while the whole thread is censored —
             // the thread banner handles restoring it in that case.
             var showCensor = p.CanCensor && !Model.IsCensored;
@@ -162,9 +197,12 @@
                 {
                     <a class="btn btn-sm" href="/thread/@Model.Slug?page=@Model.Page&replyto=@p.Id#reply">Reply</a>
                 }
-                @if (showMod)
+                @if (showEdit)
                 {
                     <a class="btn btn-sm" asp-action="EditPost" asp-route-id="@p.Id">Edit</a>
+                }
+                @if (showMod)
+                {
                     <form asp-action="DeletePost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Delete this post?">
                         <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                     </form>
@@ -224,12 +262,18 @@
     {
         <p class="muted"><a asp-controller="Account" asp-action="Login">Log in</a> to reply.</p>
     }
-    else if (!canPost)
+    else if (!canContribute)
     {
-        <p class="muted">Your account is awaiting approval before you can post.</p>
+        <p class="muted">Your account can't post.</p>
     }
     else
     {
+        if (pendingApproval)
+        {
+            <p class="muted" style="border-left:3px solid var(--mono-orange,#f26822);padding:6px 10px;margin:0 0 10px;">
+                You can reply now, but your replies stay hidden from other members until an admin approves your account.
+            </p>
+        }
         <form asp-controller="Thread" asp-action="Reply" method="post" enctype="multipart/form-data">
             <input type="hidden" name="ThreadId" value="@Model.ThreadId" />
             @if (replyTo > 0)
@@ -239,6 +283,7 @@
             }
             <div class="form-group">
                 <textarea name="Body" rows="5" required class="md-editor" placeholder="Write a reply… @@mention to notify. Highlight text and click 🔗 to add a link.">@replyPrefill</textarea>
+                @await Html.PartialAsync("_FormattingHelp")
             </div>
             @if (Model.CanPostImages)
             {

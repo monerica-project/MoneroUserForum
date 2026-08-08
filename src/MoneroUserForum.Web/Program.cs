@@ -12,6 +12,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 
+// All site URLs are canonical lowercase: tag helpers / Url.Action emit lowercase paths.
+// (Query strings are left as-is.) Inbound mixed-case paths are 301'd to lowercase below.
+builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options => options.LowercaseUrls = true);
+
 // Real-time chatroom (SignalR, transport auto-fallback so it works over Tor).
 builder.Services.AddSignalR();
 
@@ -84,6 +88,12 @@ builder.Services.AddAuthorization(options =>
         .RequireClaim("approved", "true")
         .RequireAssertion(ctx => !ctx.User.HasClaim("banned", "true")));
 
+    // Post/reply without waiting for approval. Not banned is still required; posts by an
+    // unapproved member are stored but hidden from others until their account is approved.
+    options.AddPolicy(Policies.CanContribute, p => p
+        .RequireAuthenticatedUser()
+        .RequireAssertion(ctx => !ctx.User.HasClaim("banned", "true")));
+
     options.AddPolicy(Policies.AdminOnly, p => p.RequireRole(Roles.Admin));
 });
 
@@ -147,6 +157,9 @@ app.Use(async (context, next) =>
     h["Content-Security-Policy"] =
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; " +
         "form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        // frame-src: only the privacy-enhanced youtube-nocookie domain, and only
+        // after the user clicks the click-to-play facade (nothing loads otherwise).
+        "frame-src https://www.youtube-nocookie.com; " +
         "img-src 'self' https: data:; font-src 'self'; connect-src 'self'";
     h["X-Content-Type-Options"] = "nosniff";
     h["Referrer-Policy"] = "no-referrer";
@@ -163,6 +176,28 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/error/{0}");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+
+// Canonicalize to lowercase: 301 any GET/HEAD whose PATH contains uppercase letters to the
+// lowercased path (query string preserved). Runs after UseStaticFiles so on-disk assets are
+// served untouched; only routed requests (e.g. /thread/category/BusinessDiscussion) are redirected.
+app.Use(async (context, next) =>
+{
+    var request = context.Request;
+    var path = request.Path.Value;
+    if (!string.IsNullOrEmpty(path)
+        && (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method)))
+    {
+        var lower = path.ToLowerInvariant();
+        if (!string.Equals(path, lower, StringComparison.Ordinal))
+        {
+            context.Response.Redirect(lower + request.QueryString.Value, permanent: true);
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.UseRouting();
 
 app.UseSession();

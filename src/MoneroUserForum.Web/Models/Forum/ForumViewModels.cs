@@ -37,6 +37,14 @@ public class ThreadListViewModel
     public string? Heading { get; set; }
     public int Page { get; set; } = 1;
     public bool HasMore { get; set; }
+
+    /// <summary>Active sort: "recent" (default), "views", or "replies".</summary>
+    public string Sort { get; set; } = "recent";
+
+    // ---- Community stats teaser (homepage only) ----
+    public int TotalMembers { get; set; }
+    public string? NewestMemberName { get; set; }
+    public DateTime? NewestMemberJoinedUtc { get; set; }
 }
 
 /// <summary>One post inside a thread.</summary>
@@ -67,14 +75,23 @@ public class PostView
     public string Body { get; set; } = string.Empty;
     public bool IsDeleted { get; set; }
     public bool IsCensored { get; set; }
+
+    /// <summary>Author isn't approved yet, so this post is hidden from everyone but the author and
+    /// admins. Rendered with a "pending approval" marker for those who can see it.</summary>
+    public bool IsPending { get; set; }
+
     public bool IsOpeningPost { get; set; }
     public int? ReplyToPostId { get; set; }
     public string? ReplyToAuthorName { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public bool Edited { get; set; }
 
-    /// <summary>Current viewer may edit/delete this post (its author, or an admin).</summary>
+    /// <summary>Current viewer may delete/moderate this post (its author, or an admin).</summary>
     public bool CanModify { get; set; }
+
+    /// <summary>Current viewer may EDIT this post. Author-only — admins deliberately can't edit other
+    /// people's posts (that would only ever happen by accident); they moderate via delete/censor.</summary>
+    public bool CanEdit { get; set; }
 
     /// <summary>Viewer is an admin, so they can censor / uncensor this post.</summary>
     public bool CanCensor { get; set; }
@@ -86,6 +103,12 @@ public class EditPostViewModel
 {
     public int PostId { get; set; }
     public string ThreadSlug { get; set; } = string.Empty;
+
+    /// <summary>True when editing a thread's opening post — the thread title can be changed too.</summary>
+    public bool IsOpeningPost { get; set; }
+
+    [StringLength(200, ErrorMessage = "The title can be at most {1} characters.")]
+    public string? Title { get; set; }
 
     [Required]
     [StringLength(20000, MinimumLength = 1)]
@@ -100,6 +123,11 @@ public class ThreadDetailViewModel
     public ForumCategory Category { get; set; }
     public bool IsLocked { get; set; }
     public bool IsCensored { get; set; }
+
+    /// <summary>The thread's opening author isn't approved yet — shown only to the author/admins,
+    /// with a banner explaining it isn't public until the account is approved.</summary>
+    public bool ThreadPending { get; set; }
+
     public int UniqueViews { get; set; }
     public int ReplyCount { get; set; }
     public IReadOnlyList<PostView> Posts { get; set; } = Array.Empty<PostView>();
@@ -138,4 +166,41 @@ public class ReplyViewModel
     [Required]
     [StringLength(20000, MinimumLength = 1)]
     public string Body { get; set; } = string.Empty;
+}
+
+/// <summary>A row on the "most active members" page.</summary>
+public class MemberRankItem
+{
+    public int Rank { get; set; }
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Threads started (visible).</summary>
+    public int ThreadCount { get; set; }
+
+    /// <summary>Replies posted (non-opening posts).</summary>
+    public int ReplyCount { get; set; }
+
+    /// <summary>Overall content contributed = threads + replies. Drives the ranking.</summary>
+    public int TotalContent => this.ThreadCount + this.ReplyCount;
+
+    public int ThanksCount { get; set; }
+
+    public DateTime JoinedAtUtc { get; set; }
+
+    public string? AvatarUrl { get; set; }
+}
+
+/// <summary>The community stats page: headline totals + a ranked contributor leaderboard.</summary>
+public class ForumStatsViewModel
+{
+    public int TotalMembers { get; set; }
+    public int TotalThreads { get; set; }
+    public int TotalPosts { get; set; }
+
+    public string? NewestMemberName { get; set; }
+    public DateTime? NewestMemberJoinedUtc { get; set; }
+    public string? NewestMemberAvatarUrl { get; set; }
+
+    public List<MemberRankItem> Top { get; set; } = new ();
 }

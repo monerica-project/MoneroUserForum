@@ -42,7 +42,7 @@ public class SitemapController : Controller
         Add("/sponsors");
         foreach (var c in Enum.GetValues<ForumCategory>().Where(x => x != ForumCategory.Unknown))
         {
-            Add($"/thread/category/{c}");
+            Add($"/thread/category/{c.ToString().ToLowerInvariant()}");
         }
 
         var threads = await this.db.ForumThreads

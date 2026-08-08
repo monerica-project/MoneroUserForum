@@ -135,6 +135,79 @@
         });
     }
 
+    // ---- change password: re-wrap the private keys under the new password ----
+    // Without this, changing the password orphans the member's encrypted messages.
+    var chpw = document.getElementById('change-password-form');
+    if (chpw) {
+        var chpwSubmitting = false;
+        chpw.addEventListener('submit', function (ev) {
+            if (chpwSubmitting) { return; }
+            var cur = chpw.querySelector('input[name="CurrentPassword"]');
+            var nw = chpw.querySelector('input[name="NewPassword"]');
+            var conf = chpw.querySelector('input[name="ConfirmPassword"]');
+            if (!cur || !nw || !cur.value || !nw.value || (conf && conf.value !== nw.value)) { return; } // let server validate
+            ev.preventDefault();
+            fetch('/account/e2ee-keys', { headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.json(); })
+                .then(function (keys) {
+                    if (!keys.hasKeys) { chpwSubmitting = true; chpw.submit(); return; } // no E2EE → plain change
+                    return E2EE.rewrapForNewPassword(keys.userId, cur.value, nw.value, keys).then(function (res) {
+                        setHidden(chpw, 'NewKdfSalt', res.newKdfSalt);
+                        setHidden(chpw, 'NewWrappedPrivateKeys', res.newWrappedPrivateKeys);
+                        chpwSubmitting = true;
+                        chpw.submit();
+                    });
+                })
+                .catch(function (e) {
+                    // Fail SAFE: do not submit — changing the password without re-wrapping would
+                    // permanently lock the member out of their existing messages.
+                    console.error('E2EE re-wrap failed', e);
+                    window.alert('Could not update your encryption keys for the new password. Double-check your current password and try again.');
+                });
+        });
+    }
+
+    // ---- recover encrypted messages with the one-time recovery code ----
+    var recoverForm = document.getElementById('recover-keys-form');
+    if (recoverForm) {
+        recoverForm.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var codeEl = recoverForm.querySelector('input[name="RecoveryCode"]');
+            var pwEl = recoverForm.querySelector('input[name="Password"]');
+            var errBox = document.getElementById('recover-error');
+            var okBox = document.getElementById('recover-ok');
+            var code = codeEl ? codeEl.value.trim() : '';
+            var pw = pwEl ? pwEl.value : '';
+            if (!code || !pw) { return; }
+            fetch('/account/e2ee-keys', { headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.json(); })
+                .then(function (keys) {
+                    if (!keys.recoveryWrappedPrivateKeys) { throw new Error('no-recovery'); }
+                    return E2EE.unlockWithRecoveryCode(keys.userId, code, pw, keys).then(function (res) {
+                        var fd = new FormData();
+                        fd.append('__RequestVerificationToken', tokenValue(recoverForm));
+                        fd.append('kdfSalt', res.newKdfSalt);
+                        fd.append('wrappedPrivateKeys', res.newWrappedPrivateKeys);
+                        return fetch('/account/e2ee-update-wrap', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
+                            .then(function (r) { if (!r.ok) { throw new Error('save-failed'); } });
+                    });
+                })
+                .then(function () {
+                    if (okBox) { okBox.style.display = 'block'; }
+                    window.location.href = '/messages';
+                })
+                .catch(function (e) {
+                    console.error(e);
+                    if (errBox) {
+                        errBox.textContent = (e && e.message === 'no-recovery')
+                            ? 'No recovery data is stored for this account.'
+                            : 'Could not recover — check that your recovery code and current password are correct.';
+                        errBox.style.display = 'block';
+                    }
+                });
+        });
+    }
+
     // ---- bootstrap: stamp the real user id onto keys generated at signup ----
     var uid = metaContent('muf-user-id');
     if (uid) { E2EE.tagUserId(parseInt(uid, 10)).catch(function () {}); }

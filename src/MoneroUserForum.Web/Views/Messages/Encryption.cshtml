@@ -1,0 +1,42 @@
+@{ ViewData["Title"] = "How private messages are encrypted"; }
+<div class="panel" style="max-width:760px;margin:24px auto 0;">
+    <h1>End-to-end encrypted private messages</h1>
+    <p class="muted">Plain language, exact claims — no marketing.</p>
+
+    <h2 class="panel-title">The guarantee</h2>
+    <p>
+        Every private message is encrypted <strong>in your browser</strong> before it is sent, and can only be
+        decrypted in the browser of you and the person you're messaging. Your private keys are generated on your
+        device and are stored on our server only in a form that's <strong>wrapped (encrypted) with a key derived
+        from your password</strong> — which we never see. We cannot decrypt your messages, and
+        <strong>a stolen copy of our database is useless</strong> for reading them, to an attacker or to us.
+    </p>
+
+    <h2 class="panel-title">How it works</h2>
+    <ul>
+        <li>At sign-up your browser creates two keypairs (ECDH P-256 for encryption, ECDSA P-256 for signing).</li>
+        <li>Only the <em>public</em> keys go to the server. The <em>private</em> keys are AES-256-GCM-wrapped under a
+            key stretched from your password (PBKDF2, 600k iterations), plus a copy under your one-time recovery code.</li>
+        <li>Each message is encrypted once with a random key; that key is wrapped to both the recipient and you, and
+            the whole thing is signed so the recipient knows it's genuinely from you.</li>
+        <li>Decryption happens on your device and is rendered as plain text — never as HTML.</li>
+    </ul>
+
+    <h2 class="panel-title">What this does <em>not</em> protect (the honest limits)</h2>
+    <ul>
+        <li><strong>Trusting the code we serve.</strong> The encryption runs in JavaScript we send you each visit.
+            "We can't read your messages" holds as long as that code is honest. We can't decrypt what's already stored,
+            but a compromised or coerced server could ship altered code to a targeted user going forward. The client
+            source is open for inspection.</li>
+        <li><strong>Metadata.</strong> Encryption hides message <em>contents</em>, not who messaged whom or when.</li>
+        <li><strong>Your password &amp; recovery code.</strong> The strength of the stored, wrapped keys is the strength
+            of your password. If you forget your password <em>and</em> lose your recovery code, your past messages are
+            gone for good — that's the proof no one else can read them either.</li>
+        <li><strong>Forward secrecy.</strong> A database dump alone reveals nothing, but if someone also steals a
+            recipient's unlocked device they could read messages that person already received.</li>
+        <li><strong>No server-side search, previews, or moderation</strong> of message contents — the server can't read them.</li>
+    </ul>
+
+    <p class="hint">Password changes automatically re-secure your keys. After a password <em>reset</em>, use your
+        recovery code on the <a asp-controller="Account" asp-action="RecoverKeys">restore page</a> to regain access.</p>
+</div>

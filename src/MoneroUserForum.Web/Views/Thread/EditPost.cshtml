@@ -4,9 +4,18 @@
     <h1>Edit post</h1>
     <form asp-action="EditPost" asp-route-id="@Model.PostId" method="post">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        @if (Model.IsOpeningPost)
+        {
+            <div class="form-group">
+                <label asp-for="Title">Thread title</label>
+                <input asp-for="Title" maxlength="200" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+        }
         <div class="form-group">
             <textarea asp-for="Body" rows="10" class="md-editor" required></textarea>
             <span asp-validation-for="Body" class="text-danger"></span>
+            @await Html.PartialAsync("_FormattingHelp")
         </div>
         <button type="submit" class="btn btn-primary">Save changes</button>
         <a class="btn" href="/thread/@Model.ThreadSlug#post-@Model.PostId">Cancel</a>

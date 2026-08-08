@@ -41,8 +41,11 @@ public class ThreadController : Controller
     }
 
     /// <summary>Only threads that should be publicly visible (not deleted, not censored, author not self-deleted).</summary>
+    // Threads shown in PUBLIC lists. A thread whose opening author isn't approved yet stays
+    // hidden here (the author still reaches it via its URL, and admins can see it) — so a new
+    // member's posts don't go live until their account is approved.
     private IQueryable<ForumThread> VisibleThreads()
-        => this.db.ForumThreads.Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted);
+        => this.db.ForumThreads.Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && t.Author!.IsApproved);
 
     public async Task<List<ThreadListItem>> BuildListAsync(IQueryable<ForumThread> query, int page)
     {
@@ -58,15 +61,16 @@ public class ThreadController : Controller
                 Category = t.Category,
                 AuthorName = t.Author!.DisplayName,
                 AuthorBanned = t.Author.IsBanned,
-                ReplyCount = t.Posts.Count(p => !p.IsOpeningPost && !p.Author!.IsDeleted),
+                // Counts / last-poster ignore posts by unapproved authors (their replies are hidden).
+                ReplyCount = t.Posts.Count(p => !p.IsOpeningPost && !p.Author!.IsDeleted && p.Author!.IsApproved),
                 CreatedAtUtc = t.CreatedAtUtc,
                 LastPostAtUtc = t.LastPostAtUtc,
                 IsPinned = t.IsPinned,
                 UniqueViews = t.Views.Count,
-                PostCount = t.Posts.Count,
-                LastPostId = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Id).FirstOrDefault(),
-                LastPosterName = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.DisplayName).FirstOrDefault(),
-                LastPosterAvatarPath = t.Posts.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.AvatarPath).FirstOrDefault(),
+                PostCount = t.Posts.Count(p => p.Author!.IsApproved),
+                LastPostId = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Id).FirstOrDefault(),
+                LastPosterName = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.DisplayName).FirstOrDefault(),
+                LastPosterAvatarPath = t.Posts.Where(p => p.Author!.IsApproved).OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Author!.AvatarPath).FirstOrDefault(),
             })
             .ToListAsync();
 
@@ -122,6 +126,23 @@ public class ThreadController : Controller
             return this.NotFound();
         }
 
+        var meId = this.CurrentUserId();
+
+        // A thread whose opening author isn't approved yet is "pending": visible only to that
+        // author (so they can see their own post) and to admins. Everyone else gets a 404, just
+        // like a hidden thread. Once the account is approved it appears for everyone automatically.
+        var threadAuthorApproved = await this.db.Users
+            .Where(u => u.Id == thread.AuthorId)
+            .Select(u => u.IsApproved)
+            .FirstOrDefaultAsync();
+        var viewerIsThreadAuthor = meId == thread.AuthorId;
+        if (!threadAuthorApproved && !viewerIsThreadAuthor && !isAdmin)
+        {
+            return this.NotFound();
+        }
+
+        var threadPending = !threadAuthorApproved;
+
         // Unique views — identified by a random per-browser cookie key, never an IP.
         var visitorKey = this.VisitorKey();
         if (!await this.db.ThreadViews.AnyAsync(v => v.ThreadId == thread.Id && v.VisitorKey == visitorKey))
@@ -140,12 +161,15 @@ public class ThreadController : Controller
 
         var uniqueViews = await this.db.ThreadViews.CountAsync(v => v.ThreadId == thread.Id);
 
-        var totalPosts = await this.db.Posts.CountAsync(p => p.ThreadId == thread.Id);
+        // Posts by an unapproved author are hidden from other members — but the author sees
+        // their own (marked pending), and admins see everything. Keep the page count in sync.
+        var totalPosts = await this.db.Posts.CountAsync(p =>
+            p.ThreadId == thread.Id && (p.Author!.IsApproved || p.AuthorId == meId || isAdmin));
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalPosts / (double)PageSize));
         page = Math.Clamp(page, 1, totalPages);
 
         var raw = await this.db.Posts
-            .Where(p => p.ThreadId == thread.Id)
+            .Where(p => p.ThreadId == thread.Id && (p.Author!.IsApproved || p.AuthorId == meId || isAdmin))
             .OrderBy(p => p.CreatedAtUtc)
             .Skip((page - 1) * PageSize)
             .Take(PageSize)
@@ -159,6 +183,7 @@ public class ThreadController : Controller
                 AuthorCreatedAtUtc = p.Author.CreatedAtUtc,
                 AuthorBanned = p.Author.IsBanned,
                 AuthorDeleted = p.Author.IsDeleted,
+                AuthorApproved = p.Author.IsApproved,
                 p.Body,
                 p.IsDeleted,
                 p.IsCensored,
@@ -180,7 +205,6 @@ public class ThreadController : Controller
             .ToDictionaryAsync(x => x.Key, x => x.Count);
 
         var now = DateTime.UtcNow;
-        var meId = this.CurrentUserId();
 
         // Thanks: batch per-post counts (for the button) and per-author totals
         // (shown under the avatar) for this page in two grouped queries.
@@ -225,12 +249,14 @@ public class ThreadController : Controller
             Body = r.Body,
             IsDeleted = r.IsDeleted,
             IsCensored = r.IsCensored,
+            IsPending = !r.AuthorApproved,
             IsOpeningPost = r.IsOpeningPost,
             ReplyToPostId = r.ReplyToPostId,
             ReplyToAuthorName = r.ReplyToAuthorName,
             CreatedAtUtc = r.CreatedAtUtc,
             Edited = r.UpdatedAtUtc > r.CreatedAtUtc.AddSeconds(5),
             CanModify = !r.AuthorDeleted && ((meId == r.AuthorId) || isAdmin),
+            CanEdit = !r.AuthorDeleted && meId == r.AuthorId,
             CanCensor = isAdmin,
             ImageUrls = r.Images.Select(i => this.images.PublicUrl(i)).ToList(),
         }).ToList();
@@ -261,6 +287,7 @@ public class ThreadController : Controller
             Category = thread.Category,
             IsLocked = thread.IsLocked,
             IsCensored = thread.IsCensored,
+            ThreadPending = threadPending,
             UniqueViews = uniqueViews,
             ReplyCount = Math.Max(0, totalPosts - 1),
             Posts = posts,
@@ -294,7 +321,7 @@ public class ThreadController : Controller
     }
 
     [HttpGet("create")]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> Create(ForumCategory category = ForumCategory.GeneralDiscussion)
     {
         await this.SetImagePerkViewBagAsync();
@@ -303,7 +330,7 @@ public class ThreadController : Controller
 
     [HttpPost("create")]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> Create(CreateThreadViewModel model, List<IFormFile>? images)
     {
         await this.SetImagePerkViewBagAsync();
@@ -372,14 +399,24 @@ public class ThreadController : Controller
 
         await this.AttachImagesAsync(opening, images, now);
 
-        await this.notifications.NotifyOnNewPostAsync(opening);
+        // Notify subscribers/mentions only about posts that are actually visible. An unapproved
+        // author's thread is pending, so tell THEM instead of blasting a hidden post.
+        if (this.User.HasClaim("approved", "true"))
+        {
+            await this.notifications.NotifyOnNewPostAsync(opening);
+        }
+        else
+        {
+            this.TempData["Message"] = "Your thread was posted. It stays hidden from other members "
+                + "until an admin approves your account — you can keep posting in the meantime.";
+        }
 
         return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
     }
 
     [HttpPost("reply")]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> Reply(ReplyViewModel model, List<IFormFile>? images)
     {
         var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Id == model.ThreadId && !t.IsDeleted);
@@ -419,7 +456,16 @@ public class ThreadController : Controller
 
         await this.AttachImagesAsync(post, images, now);
 
-        await this.notifications.NotifyOnNewPostAsync(post);
+        // Hidden (pending) replies don't notify anyone — tell the author instead.
+        if (this.User.HasClaim("approved", "true"))
+        {
+            await this.notifications.NotifyOnNewPostAsync(post);
+        }
+        else
+        {
+            this.TempData["Message"] = "Your reply was posted. It stays hidden from other members "
+                + "until an admin approves your account — you can keep posting in the meantime.";
+        }
 
         var lastPage = Math.Max(1, (int)Math.Ceiling(
             await this.db.Posts.CountAsync(p => p.ThreadId == thread.Id) / (double)PageSize));
@@ -427,7 +473,7 @@ public class ThreadController : Controller
     }
 
     [HttpGet("post/{id:int}/edit")]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> EditPost(int id)
     {
         var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
@@ -436,17 +482,24 @@ public class ThreadController : Controller
             return this.NotFound();
         }
 
-        if (!this.CanModify(post.AuthorId))
+        if (!this.IsAuthor(post.AuthorId))
         {
             return this.Forbid();
         }
 
-        return this.View(new EditPostViewModel { PostId = post.Id, ThreadSlug = post.Thread.Slug, Body = post.Body });
+        return this.View(new EditPostViewModel
+        {
+            PostId = post.Id,
+            ThreadSlug = post.Thread.Slug,
+            Body = post.Body,
+            IsOpeningPost = post.IsOpeningPost,
+            Title = post.IsOpeningPost ? post.Thread.Title : null,
+        });
     }
 
     [HttpPost("post/{id:int}/edit")]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> EditPost(int id, EditPostViewModel model)
     {
         var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
@@ -455,27 +508,62 @@ public class ThreadController : Controller
             return this.NotFound();
         }
 
-        if (!this.CanModify(post.AuthorId))
+        if (!this.IsAuthor(post.AuthorId))
         {
             return this.Forbid();
+        }
+
+        // The title only applies to a thread's opening post; require a sensible one there.
+        if (post.IsOpeningPost && (model.Title ?? string.Empty).Trim().Length < 4)
+        {
+            this.ModelState.AddModelError(nameof(model.Title), "The title must be at least 4 characters.");
         }
 
         if (!this.ModelState.IsValid)
         {
             model.PostId = post.Id;
             model.ThreadSlug = post.Thread.Slug;
+            model.IsOpeningPost = post.IsOpeningPost;
             return this.View(model);
         }
 
         post.Body = model.Body.Trim();
         post.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Editing the opening post can also rename the thread — and the slug (URL) follows.
+        if (post.IsOpeningPost && !string.IsNullOrWhiteSpace(model.Title))
+        {
+            var newTitle = model.Title.Trim();
+            post.Thread.Title = newTitle;
+            post.Thread.UpdatedAtUtc = DateTime.UtcNow;
+
+            var slug = SlugHelper.Slugify(newTitle);
+            if (string.IsNullOrEmpty(slug))
+            {
+                slug = "thread";
+            }
+
+            if (slug != post.Thread.Slug)
+            {
+                // Keep it unique, ignoring this thread's own current slug.
+                var baseSlug = slug;
+                var n = 1;
+                while (await this.db.ForumThreads.AnyAsync(t => t.Slug == slug && t.Id != post.Thread.Id))
+                {
+                    slug = $"{baseSlug}-{++n}";
+                }
+
+                post.Thread.Slug = slug;
+            }
+        }
+
         await this.db.SaveChangesAsync();
         return this.Redirect($"/thread/{post.Thread.Slug}#post-{post.Id}");
     }
 
     [HttpPost("post/{id:int}/delete")]
     [ValidateAntiForgeryToken]
-    [Authorize(Policy = Policies.CanPost)]
+    [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> DeletePost(int id)
     {
         var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
@@ -761,6 +849,32 @@ public class ThreadController : Controller
         return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
     }
 
+    /// <summary>Admin: lock/unlock a thread. A locked thread accepts no new replies
+    /// (the reply action already rejects them); this just flips the flag.</summary>
+    [HttpPost("{id:int}/lock")]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> SetLock(int id, bool locked)
+    {
+        var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Id == id);
+        if (thread is null)
+        {
+            return this.NotFound();
+        }
+
+        if (thread.IsLocked != locked)
+        {
+            thread.IsLocked = locked;
+            thread.UpdatedAtUtc = DateTime.UtcNow;
+            await this.db.SaveChangesAsync();
+        }
+
+        this.TempData["Message"] = locked
+            ? "Thread locked — no new replies allowed."
+            : "Thread unlocked.";
+        return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
+    }
+
     [HttpPost("{id:int}/delete-thread")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.AdminOnly)]
@@ -787,6 +901,10 @@ public class ThreadController : Controller
         var me = this.CurrentUserId();
         return (me == authorId) || this.User.IsInRole("Admin");
     }
+
+    // Editing a post is author-only — an admin editing someone else's words would only ever be an
+    // accident. Admins still moderate via delete / censor (which use CanModify above).
+    private bool IsAuthor(int authorId) => this.CurrentUserId() == authorId;
 
     private int? CurrentUserId()
     {

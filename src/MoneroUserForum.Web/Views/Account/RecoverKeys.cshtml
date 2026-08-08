@@ -1,0 +1,31 @@
+@{ ViewData["Title"] = "Restore encrypted messages"; }
+<div class="panel form-narrow" style="margin:24px auto 0;">
+    <h1>Restore your encrypted messages</h1>
+    <p class="muted">
+        If you reset your password, your existing private messages were locked to your old one.
+        Enter the <strong>recovery code</strong> you saved at sign-up and your <strong>current password</strong>
+        to unlock them again and re-secure them to your new password.
+    </p>
+
+    <div id="recover-error" class="text-danger" style="display:none;" role="alert"></div>
+    <div id="recover-ok" class="notice" style="display:none;">Restored — taking you to your messages…</div>
+
+    <form id="recover-keys-form" method="post">
+        @Html.AntiForgeryToken()
+        <div class="form-group">
+            <label>Recovery code</label>
+            <input type="text" name="RecoveryCode" autocomplete="off" spellcheck="false"
+                   placeholder="XXXXX-XXXXX-XXXXX-…" />
+        </div>
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="Password" autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary">Restore messages</button>
+    </form>
+
+    <p class="hint" style="margin-top:14px;">
+        No recovery code and no password? Your past messages can't be recovered — that's the proof that
+        no one, including us, can read them. New messages will work normally.
+    </p>
+</div>

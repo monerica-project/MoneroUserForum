@@ -76,6 +76,11 @@ public class ChangePasswordViewModel
     [Display(Name = "Confirm new password")]
     [Compare(nameof(NewPassword), ErrorMessage = "The passwords do not match.")]
     public string ConfirmPassword { get; set; } = string.Empty;
+
+    // E2EE: private keys re-wrapped under the new password, injected by e2ee-auth.js so the
+    // password change doesn't orphan the member's encrypted messages.
+    public string? NewKdfSalt { get; set; }
+    public string? NewWrappedPrivateKeys { get; set; }
 }
 
 public class ChangeUsernameViewModel

@@ -236,6 +236,8 @@ public class AccountController : Controller
             wrappedPrivateKeys = user.WrappedPrivateKeys,
             encPublicKey = user.EncPublicKey,
             signPublicKey = user.SignPublicKey,
+            recoverySalt = user.RecoverySalt,
+            recoveryWrappedPrivateKeys = user.RecoveryWrappedPrivateKeys,
         });
     }
 
@@ -356,10 +358,53 @@ public class AccountController : Controller
             return this.View(nameof(this.Settings), model);
         }
 
+        // E2EE: the browser re-wrapped the private keys under the new password and posted the
+        // result as hidden fields. Store them so the member can still read their encrypted
+        // messages after the password change (otherwise the keys would be orphaned).
+        if (!string.IsNullOrWhiteSpace(model.NewKdfSalt) && !string.IsNullOrWhiteSpace(model.NewWrappedPrivateKeys)
+            && !string.IsNullOrEmpty(user.EncPublicKey))
+        {
+            user.KdfSalt = model.NewKdfSalt;
+            user.WrappedPrivateKeys = model.NewWrappedPrivateKeys;
+            user.UpdatedAtUtc = DateTime.UtcNow;
+            await this.users.UpdateAsync(user);
+        }
+
         await this.signIn.RefreshSignInAsync(user);
         this.TempData["Message"] = "Password changed.";
         return this.RedirectToAction(nameof(this.Settings));
     }
+
+    /// <summary>Updates the password-wrapped private-key blob for the current member (used by the
+    /// recovery-code flow to re-key after a password reset). Requires an existing E2EE setup.</summary>
+    [HttpPost("e2ee-update-wrap")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public async Task<IActionResult> E2eeUpdateWrap(string? kdfSalt, string? wrappedPrivateKeys)
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (string.IsNullOrEmpty(user.EncPublicKey) || string.IsNullOrWhiteSpace(kdfSalt) || string.IsNullOrWhiteSpace(wrappedPrivateKeys))
+        {
+            return this.BadRequest(new { ok = false, error = "Missing key material." });
+        }
+
+        user.KdfSalt = kdfSalt;
+        user.WrappedPrivateKeys = wrappedPrivateKeys;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await this.users.UpdateAsync(user);
+        return this.Json(new { ok = true });
+    }
+
+    /// <summary>Page to restore access to encrypted messages using the one-time recovery code
+    /// (after a password reset orphaned the password-wrapped keys). All crypto is client-side.</summary>
+    [HttpGet("recover-keys")]
+    [Authorize]
+    public IActionResult RecoverKeys() => this.View();
 
     [HttpPost("change-username")]
     [ValidateAntiForgeryToken]
@@ -417,6 +462,12 @@ public class AccountController : Controller
         return this.RedirectToAction(nameof(this.Settings));
     }
 
+    // Dedicated confirmation page — reached via a link on Settings, so deleting an account is a
+    // deliberate two-step action rather than a button someone can hit in a moment of frustration.
+    [HttpGet("delete")]
+    [Authorize]
+    public IActionResult DeleteAccount() => this.View(new DeleteAccountViewModel());
+
     [HttpPost("delete")]
     [ValidateAntiForgeryToken]
     [Authorize]
@@ -431,7 +482,7 @@ public class AccountController : Controller
         if (!model.Confirm || !await this.users.CheckPasswordAsync(user, model.CurrentPassword))
         {
             this.TempData["Error"] = "Confirm the box and enter your current password to delete your account.";
-            return this.RedirectToAction(nameof(this.Settings));
+            return this.RedirectToAction(nameof(this.DeleteAccount));
         }
 
         // Soft-delete: keeps threads intact but hides the member and all their posts.

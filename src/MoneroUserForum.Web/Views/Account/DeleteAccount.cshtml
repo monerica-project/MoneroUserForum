@@ -1,0 +1,32 @@
+@model MoneroUserForum.Web.Models.Account.DeleteAccountViewModel
+@{
+    ViewData["Title"] = "Delete account";
+}
+
+<div class="panel form-narrow" style="margin: 30px auto 0; border-color: rgba(255,82,82,.35);">
+    <h1 style="margin:0 0 6px;color:#ff8a8a;">Delete account</h1>
+    <p class="muted" style="margin:0 0 14px;">
+        This <strong>hides your profile and blacks out all your posts</strong>, and signs you out.
+        It <strong>cannot be undone</strong> — there's no way to restore the account afterwards.
+        If you just want a break, you can simply log out instead.
+    </p>
+
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+    <form asp-action="DeleteAccount" method="post" data-confirm="Permanently delete your account? This can’t be undone.">
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="CurrentPassword" autocomplete="current-password" autofocus />
+        </div>
+        <div class="form-group">
+            <label style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--fg)">
+                <input type="checkbox" name="Confirm" value="true" style="width:auto" />
+                Yes, permanently delete my account and hide my posts
+            </label>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+            <button type="submit" class="btn btn-danger">Delete my account</button>
+            <a class="btn" asp-action="Settings">Cancel</a>
+        </div>
+    </form>
+</div>
