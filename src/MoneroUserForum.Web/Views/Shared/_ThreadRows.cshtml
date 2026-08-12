@@ -39,7 +39,7 @@ else
                     }
                     else
                     {
-                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.LastPosterName" class="lastby-link"><img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" width="18" height="18" loading="lazy" decoding="async" />@t.LastPosterName</a>
+                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.LastPosterName" class="lastby-link"><img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" width="18" height="18" loading="lazy" decoding="async" />@t.LastPosterName</a>
                     }
                     · @TimeAgo(t.LastPostAtUtc)
                 </div>

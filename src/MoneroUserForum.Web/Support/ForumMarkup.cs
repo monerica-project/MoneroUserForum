@@ -46,16 +46,45 @@ public static class ForumMarkup
     /// matching who actually gets a mention notification. Runs after sanitization on trusted markup.</summary>
     private static string HighlightMentions(string html)
     {
-        return TagOrTextRegex.Replace(html, seg =>
+        var sb = new System.Text.StringBuilder(html.Length + 32);
+        var insideAnchor = 0;
+
+        foreach (Match seg in TagOrTextRegex.Matches(html))
         {
             var s = seg.Value;
             if (s.Length > 0 && s[0] == '<')
             {
-                return s; // a tag — never rewrite inside it
+                // Track <a>…</a> nesting so @handles that are part of a link
+                // (e.g. a YouTube URL like youtube.com/@channel) are never turned
+                // into member mentions — they aren't forum members, just links.
+                if (s.StartsWith("</a", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (insideAnchor > 0)
+                    {
+                        insideAnchor--;
+                    }
+                }
+                else if (s.StartsWith("<a", StringComparison.OrdinalIgnoreCase)
+                         && (s.Length < 3 || s[2] == ' ' || s[2] == '>' || s[2] == '\t' || s[2] == '\n' || s[2] == '\r'))
+                {
+                    insideAnchor++;
+                }
+
+                sb.Append(s); // a tag — never rewrite inside it
+                continue;
             }
 
-            return MentionRegex.Replace(s, m => $"<span class=\"mention\">@{m.Groups[1].Value}</span>");
-        });
+            if (insideAnchor > 0)
+            {
+                sb.Append(s); // inside a link — leave @handles alone
+            }
+            else
+            {
+                sb.Append(MentionRegex.Replace(s, m => $"<span class=\"mention\">@{m.Groups[1].Value}</span>"));
+            }
+        }
+
+        return sb.ToString();
     }
 
     // A paragraph whose only content is a single YouTube link → turn it into a

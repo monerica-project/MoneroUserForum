@@ -7,7 +7,7 @@
 
 <div class="panel">
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-        <img class="avatar avatar-lg" src="@(Model.AvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+        <img class="avatar avatar-lg" src="@(Model.AvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" />
         <div style="flex:1 1 auto;min-width:0;">
             <h1 style="margin:0;">@Model.DisplayName
                 @if (Model.IsBanned) { <span class="chip" style="color:#ff8a8a;border-color:rgba(255,82,82,.4);">banned</span> }

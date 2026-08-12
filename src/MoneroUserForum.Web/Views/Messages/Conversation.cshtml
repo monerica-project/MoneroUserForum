@@ -13,7 +13,7 @@
 
     <section class="dm-threadcol">
         <div class="panel dm-thread-head">
-            <img class="avatar" src="@(Model.PartnerAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+            <img class="avatar" src="@(Model.PartnerAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" />
             <div class="dm-thread-who">
                 <a class="dm-thread-name" asp-controller="Profile" asp-action="View" asp-route-name="@Model.PartnerName">@Model.PartnerName</a>
                 <div class="thread-meta">@Model.Messages.Count message@(Model.Messages.Count == 1 ? "" : "s")</div>

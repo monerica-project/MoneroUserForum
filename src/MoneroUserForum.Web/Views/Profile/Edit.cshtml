@@ -9,7 +9,7 @@
         <div class="form-group">
             <label>Profile image</label>
             <div style="display:flex;align-items:center;gap:12px;">
-                <img class="avatar avatar-lg" src="@(Model.CurrentAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+                <img class="avatar avatar-lg" src="@(Model.CurrentAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" />
                 <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif" />
             </div>
             <div class="hint">JPG/PNG/WEBP/GIF, under 3 MB. Approved members only.</div>

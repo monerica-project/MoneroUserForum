@@ -181,6 +181,7 @@ a.chip:hover { filter: brightness(1.18); text-decoration: none; }
 .cat-Announcements      { color:#fb7185; border-color:rgba(251,113,133,.45); background:rgba(251,113,133,.10); }  /* red — important */
 .cat-ExchangeTalk       { color:#22d3ee; border-color:rgba(34,211,238,.45);  background:rgba(34,211,238,.10); }  /* cyan — exchanges/swaps */
 .cat-BusinessDiscussion { color:#34d399; border-color:rgba(52,211,153,.45);  background:rgba(52,211,153,.10); }  /* green — money/business */
+.cat-Culture            { color:#fb923c; border-color:rgba(251,146,60,.45);  background:rgba(251,146,60,.10); }  /* orange — community, art & culture */
 .cat-Promotional        { color:#1a1400; border-color:#fbbf24; background:#fbbf24; font-weight:800; }  /* filled gold — stands out as a paid/promo post */
 a.cat-Promotional:hover { background:#fcd34d; border-color:#fcd34d; }
 .rep { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); }

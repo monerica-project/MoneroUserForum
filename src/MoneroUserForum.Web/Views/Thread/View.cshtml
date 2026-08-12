@@ -97,13 +97,13 @@
             <div class="post-author">
                 @if (p.AuthorDeleted)
                 {
-                    <img class="avatar" src="@Url.Content("~/img/muf-mark.png")" alt="" width="56" height="56" loading="lazy" decoding="async" />
+                    <img class="avatar" src="@Url.Content("https://cdn.monerouserforum.com/muf-mark.png")" alt="" width="56" height="56" loading="lazy" decoding="async" />
                     <span class="who muted @WhoSize("[account deleted]")">[account deleted]</span>
                 }
                 else
                 {
                     var whoText = p.AuthorBanned ? "[banned]" : p.AuthorName;
-                    <a class="avatar-link" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName" tabindex="-1" aria-hidden="true"><img class="avatar" src="@(p.AuthorAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" width="56" height="56" loading="lazy" decoding="async" /></a>
+                    <a class="avatar-link" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName" tabindex="-1" aria-hidden="true"><img class="avatar" src="@(p.AuthorAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" width="56" height="56" loading="lazy" decoding="async" /></a>
                     <a class="who @WhoSize(whoText)" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName">@whoText</a>
                     <span class="rep">@Describe(p.AuthorReputation)</span>
                     <a class="pcount" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName" asp-fragment="posts" title="See all posts by this member"><b>@p.AuthorPostCount</b> post@(p.AuthorPostCount == 1 ? "" : "s")</a>

@@ -1,0 +1,15 @@
+# Monero User Forum
+
+> A community forum for discussing Monero (XMR): privacy, wallets, mining, nodes, merchants, and the broader Monero ecosystem. Part of the Monerica network. Private messages between members are end-to-end encrypted.
+
+## Main pages
+- [Home / recent discussions](https://monerouserforum.com/)
+- [About](https://monerouserforum.com/about)
+- [Contact](https://monerouserforum.com/contact)
+- [Register an account](https://monerouserforum.com/account/register)
+- [Sponsors](https://monerouserforum.com/sponsors)
+
+## About this site
+- Topic focus: Monero (XMR), a privacy-preserving cryptocurrency
+- Part of the Monerica network: https://monerica.com
+- Open source: https://code.monerica.com/monerica-project/monerouserforum

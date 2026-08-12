@@ -28,7 +28,7 @@
                 else                      { roleLabel = Describe(c.PartnerReputation); roleCss = "role-rep"; }
 
                 <a class="dm-convo @(active ? "active" : "")" asp-action="Conversation" asp-route-name="@c.PartnerName">
-                    <img class="avatar" src="@(c.PartnerAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />
+                    <img class="avatar" src="@(c.PartnerAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" />
                     <div class="dm-convo-body">
                         <div class="dm-convo-top">
                             <span class="dm-convo-name">@(c.PartnerGone ? "[deleted]" : c.PartnerName)</span>

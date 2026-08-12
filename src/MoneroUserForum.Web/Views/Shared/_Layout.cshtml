@@ -10,7 +10,7 @@
     var metaDesc = ViewData["Description"] as string
         ?? "A forum for Monero users to communicate — price talk, technical help, and general discussion. No email required, works over Tor.";
     var canonical = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
-    var ogImage = $"{Context.Request.Scheme}://{Context.Request.Host}/img/monerouserforum.png";
+    var ogImage = "https://cdn.monerouserforum.com/monerouserforum.png";
     var ctrl = (ViewContext.RouteData.Values["controller"] as string ?? string.Empty).ToLowerInvariant();
     var privateArea = ctrl is "account" or "admin" or "messages" or "notifications";
     var ogType = ViewData["OgType"] as string ?? "website";
@@ -40,8 +40,8 @@
     <meta name="twitter:title" content="@fullTitle" />
     <meta name="twitter:description" content="@metaDesc" />
     <meta name="twitter:image" content="@ogImage" />
-    <link rel="icon" type="image/png" href="~/img/muf-mark.png" />
-    <link rel="apple-touch-icon" href="~/img/muf-mark.png" />
+    <link rel="icon" type="image/png" href="https://cdn.monerouserforum.com/muf-mark.png" />
+    <link rel="apple-touch-icon" href="https://cdn.monerouserforum.com/muf-mark.png" />
     <link rel="stylesheet" href="~/css/muf.css" asp-append-version="true" />
     @if (authed)
     {
@@ -58,7 +58,7 @@
     <header class="site-header">
         <nav class="nav">
             <a class="brand" asp-controller="Home" asp-action="Index">
-                <img class="logo-img" src="~/img/muf-mark.png" alt="" width="34" height="34" /> <span class="accent">Monero</span>&nbsp;User&nbsp;Forum
+                <img class="logo-img" src="https://cdn.monerouserforum.com/muf-mark.png" alt="" width="34" height="34" /> <span class="accent">Monero</span>&nbsp;User&nbsp;Forum
             </a>
             <div class="nav-links">
                 <a asp-controller="Home" asp-action="Index">Recent</a>
@@ -134,6 +134,7 @@
                 <a asp-controller="Contact" asp-action="Index">Contact</a>
                 <a asp-controller="Sponsors" asp-action="Index">Sponsors</a>
                 <a asp-controller="Home" asp-action="Network">Network</a>
+                <a href="https://code.monerica.com/monerica-project/monerouserforum" target="_blank" rel="noopener">Code</a>
             </span>
             <span class="nav-spacer"></span>
             <span class="dim">In the <a asp-controller="Home" asp-action="Network">Monerica Network</a></span>

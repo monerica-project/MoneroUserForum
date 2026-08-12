@@ -31,4 +31,7 @@ public enum ForumCategory
 
     [Description("Promotional")]
     Promotional = 7,
+
+    [Description("Culture")]
+    Culture = 8,
 }
