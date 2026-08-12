@@ -175,6 +175,28 @@ public class NotificationService : INotificationService
         });
     }
 
+    public async Task NotifyThankAsync(Post post, int actorUserId, CancellationToken ct = default)
+    {
+        // Never notify yourself (you can't thank your own post anyway).
+        if (post.AuthorId == actorUserId)
+        {
+            return;
+        }
+
+        this.db.Notifications.Add(new Notification
+        {
+            RecipientUserId = post.AuthorId, // the thanked author hears about it
+            ActorUserId = actorUserId,       // who did the thanking
+            Type = NotificationType.Thanked,
+            ThreadId = post.ThreadId,
+            PostId = post.Id,
+            CreatedAtUtc = DateTime.UtcNow,
+            IsRead = false,
+        });
+
+        await this.db.SaveChangesAsync(ct);
+    }
+
     /// <summary>
     /// Fire-and-forget: emails each recipient who opted in AND has an email address.
     /// Runs in a fresh DI scope so it never touches the request-scoped DbContext, and

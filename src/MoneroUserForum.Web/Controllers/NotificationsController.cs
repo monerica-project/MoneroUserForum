@@ -44,6 +44,13 @@ public class NotificationsController : Controller
             })
             .ToListAsync();
 
+        // Opening this page IS the acknowledgement: clear the unread badge automatically.
+        // rows[] already captured each item's read/unread state, so this render still
+        // highlights what was new — but the bell resets and next visit shows them read.
+        await this.db.Notifications
+            .Where(n => n.RecipientUserId == uid && !n.IsRead)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
+
         return this.View(rows);
     }
 

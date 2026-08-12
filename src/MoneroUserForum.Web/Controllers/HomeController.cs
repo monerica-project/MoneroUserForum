@@ -41,7 +41,7 @@ public class HomeController : Controller
 
         var threads = await sorted
             .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .Take(pageSize + 1) // one extra row tells us whether a further page has content
             .Select(t => new ThreadListItem
             {
                 Title = t.Title,
@@ -61,6 +61,13 @@ public class HomeController : Controller
             })
             .ToListAsync();
 
+        // Only offer an "Older →" link when the extra row proves the next page has content.
+        var hasMore = threads.Count > pageSize;
+        if (hasMore)
+        {
+            threads.RemoveAt(threads.Count - 1);
+        }
+
         this.ResolveLastPosterAvatars(threads);
 
         // Community teaser: total members + who joined most recently.
@@ -76,7 +83,7 @@ public class HomeController : Controller
             Threads = threads,
             Heading = sort == "views" ? "Most viewed" : sort == "replies" ? "Most replies" : "Recent discussions",
             Page = page,
-            HasMore = threads.Count == pageSize,
+            HasMore = hasMore,
             Sort = sort,
             TotalMembers = totalMembers,
             NewestMemberName = newest?.DisplayName,

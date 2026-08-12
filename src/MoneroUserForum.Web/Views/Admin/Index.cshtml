@@ -2,9 +2,14 @@
 @{ ViewData["Title"] = "Admin"; }
 <h1>Admin</h1>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px;">
-    <a class="panel" style="margin:0;text-align:center;" asp-action="Approvals">
+    @{ var hasPending = Model.PendingCount > 0; }
+    <a class="panel" style="margin:0;text-align:center;@(hasPending ? "border-color:var(--mono-orange);background:rgba(255,102,0,.12);box-shadow:0 0 0 2px var(--mono-orange);" : "")" asp-action="Approvals">
         <div style="font-size:30px;font-weight:800;color:var(--mono-orange);">@Model.PendingCount</div>
         <div class="muted">Pending approval</div>
+        @if (hasPending)
+        {
+            <div style="color:var(--mono-orange);font-weight:800;font-size:12px;margin-top:4px;text-transform:uppercase;letter-spacing:.03em;">⚠ Action needed →</div>
+        }
     </a>
     <a class="panel" style="margin:0;text-align:center;" asp-action="Reports">
         <div style="font-size:30px;font-weight:800;color:@(Model.ReportsPending > 0 ? "#ff8a8a" : "inherit");">@Model.ReportsPending</div>
@@ -36,4 +41,5 @@
     <a class="btn" asp-action="Reports">Reported posts (@Model.ReportsPending)</a>
     <a class="btn" asp-action="Messages">Contact inbox (@Model.ContactUnread)</a>
     <a class="btn" asp-action="Members">Manage members</a>
+    <a class="btn" asp-action="Analytics">📈 Analytics</a>
 </div>

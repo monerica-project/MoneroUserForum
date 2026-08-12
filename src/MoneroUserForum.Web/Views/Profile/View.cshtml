@@ -13,7 +13,10 @@
                 @if (Model.IsBanned) { <span class="chip" style="color:#ff8a8a;border-color:rgba(255,82,82,.4);">banned</span> }
             </h1>
             <div class="thread-meta">
-                <span class="rep">@Describe(Model.Reputation)</span> · @Model.PostCount posts · joined @TimeAgo(Model.JoinedAtUtc)
+                <span class="rep">@Describe(Model.Reputation)</span> · <a href="#posts" title="See all posts by this member">@Model.PostCount posts</a> · joined @TimeAgo(Model.JoinedAtUtc)
+                <br />
+                <a asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="received" title="See which posts were thanked">★ @Model.ThanksReceived thanks received</a>
+                · <a asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="given" title="See which posts this member thanked">☆ @Model.ThanksGiven given</a>
                 <time datetime="@Model.JoinedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" style="font-size:11px;opacity:.65;margin-left:6px;" title="Joined (UTC)">@Model.JoinedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")</time>
             </div>
             @if (Model.IsSelf)
@@ -35,6 +38,36 @@
     @if (!string.IsNullOrWhiteSpace(Model.Signature))
     {
         <div class="post-sig" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">@Model.Signature</div>
+    }
+</div>
+
+<div class="panel" id="posts">
+    <h2 class="panel-title">Posts &amp; comments</h2>
+    @if (Model.RecentPosts.Count == 0)
+    {
+        <p class="muted" style="margin:0;">No posts yet.</p>
+    }
+    else
+    {
+        <ul style="list-style:none;margin:0;padding:0;">
+            @foreach (var post in Model.RecentPosts)
+            {
+                <li style="padding:10px 0;border-bottom:1px solid var(--border);">
+                    <a href="/thread/@post.ThreadSlug#post-@post.PostId" style="font-weight:700;">@post.ThreadTitle</a>
+                    <span class="chip" style="margin-left:6px;">@(post.IsOpeningPost ? "Thread" : "Reply")</span>
+                    <span class="dim" style="font-size:11px;margin-left:6px;" title="@post.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")">@TimeAgo(post.CreatedAtUtc)</span>
+                    <div class="muted" style="font-size:13px;margin-top:3px;word-break:break-word;">@post.Snippet@(post.Snippet.Length >= 180 ? "…" : "")</div>
+                </li>
+            }
+        </ul>
+        @if (Model.TotalPages > 1)
+        {
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+                <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-action="View" asp-route-name="@Model.DisplayName" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+                <span class="muted" style="font-size:12px;">Page @Model.Page of @Model.TotalPages</span>
+                <span>@if (Model.Page < Model.TotalPages) { <a class="btn btn-sm" asp-action="View" asp-route-name="@Model.DisplayName" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+            </div>
+        }
     }
 </div>
 
@@ -76,7 +109,7 @@
             }
             <div style="flex:1 1 220px;min-width:0;">
                 <div class="dim" style="font-size:12px;margin-bottom:4px;">Scan with a Monero wallet, or copy the address:</div>
-                <code style="word-break:break-all;display:block;background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--border);">@Model.MoneroDonationAddress</code>
+                <code style="word-break:break-all;display:block;background:var(--bg);padding:8px 10px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;line-height:1.35;">@Model.MoneroDonationAddress</code>
             </div>
         </div>
     </div>
@@ -86,7 +119,7 @@
 {
     <div class="panel">
         <h2 class="panel-title">PGP public key</h2>
-        <pre style="white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);font-size:12px;">@Model.PgpPublicKey</pre>
+        <pre style="white-space:pre;overflow:auto;max-height:190px;background:var(--bg);padding:10px 12px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:10.5px;line-height:1.3;">@Model.PgpPublicKey</pre>
     </div>
 }
 

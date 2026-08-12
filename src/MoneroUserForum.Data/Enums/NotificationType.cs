@@ -21,4 +21,7 @@ public enum NotificationType
 
     [Description("reported a post")]
     PostReported = 5,
+
+    [Description("thanked your post")]
+    Thanked = 6,
 }

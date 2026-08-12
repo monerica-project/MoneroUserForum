@@ -39,12 +39,12 @@ else
                     }
                     else
                     {
-                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.LastPosterName" class="lastby-link"><img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" />@t.LastPosterName</a>
+                        <a asp-controller="Profile" asp-action="View" asp-route-name="@t.LastPosterName" class="lastby-link"><img class="avatar avatar-xs" src="@(t.LastPosterAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" width="18" height="18" loading="lazy" decoding="async" />@t.LastPosterName</a>
                     }
                     · @TimeAgo(t.LastPostAtUtc)
                 </div>
                 @{ var lastPage = Math.Max(1, (int)Math.Ceiling(t.PostCount / 20.0)); }
-                <a class="btn btn-sm" style="margin-top:5px;" href="/thread/@t.Slug?page=@lastPage#post-@t.LastPostId">Last reply →</a>
+                <a class="btn btn-sm" style="margin-top:5px;" href="/thread/@t.Slug?page=@lastPage#post-@t.LastPostId" aria-label="Last reply in @t.Title">Last reply →</a>
             </div>
         </div>
     }

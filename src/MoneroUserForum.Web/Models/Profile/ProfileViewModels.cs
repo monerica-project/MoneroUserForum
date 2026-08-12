@@ -3,13 +3,59 @@ using MoneroUserForum.Data.Enums;
 
 namespace MoneroUserForum.Web.Models.Profile;
 
+/// <summary>One row in the "posts &amp; comments" list on a member's profile.</summary>
+public class ProfilePostItem
+{
+    public int PostId { get; set; }
+    public string ThreadSlug { get; set; } = string.Empty;
+    public string ThreadTitle { get; set; } = string.Empty;
+    public bool IsOpeningPost { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public string Snippet { get; set; } = string.Empty;
+}
+
+/// <summary>One row on the "thanks given / received" list — a single thank event on a post.</summary>
+public class ThanksListItem
+{
+    public int PostId { get; set; }
+    public string ThreadSlug { get; set; } = string.Empty;
+    public string ThreadTitle { get; set; } = string.Empty;
+    public bool IsOpeningPost { get; set; }
+
+    /// <summary>1-based thread page the post falls on, so its link lands on the post.</summary>
+    public int ThreadPage { get; set; } = 1;
+
+    /// <summary>The other member: who gave the thank (received view) or whose post was thanked (given view).</summary>
+    public string OtherName { get; set; } = string.Empty;
+    public DateTime WhenUtc { get; set; }
+}
+
+public class ThanksListViewModel
+{
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>true = thanks this member received; false = thanks this member gave out.</summary>
+    public bool IsReceived { get; set; }
+    public int Total { get; set; }
+    public IReadOnlyList<ThanksListItem> Items { get; set; } = Array.Empty<ThanksListItem>();
+    public int Page { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
+}
+
 public class ProfileViewModel
 {
     public string DisplayName { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
     public DateTime JoinedAtUtc { get; set; }
     public int PostCount { get; set; }
+    public int ThanksReceived { get; set; }
+    public int ThanksGiven { get; set; }
     public ReputationLevel Reputation { get; set; }
+
+    // Paged list of this member's threads and replies.
+    public IReadOnlyList<ProfilePostItem> RecentPosts { get; set; } = Array.Empty<ProfilePostItem>();
+    public int Page { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
     public bool IsBanned { get; set; }
     public bool IsSelf { get; set; }
 

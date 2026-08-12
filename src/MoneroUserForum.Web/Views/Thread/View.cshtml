@@ -95,18 +95,20 @@
     <div class="post" id="post-@p.Id">
         <div class="post-inner">
             <div class="post-author">
-                <img class="avatar" src="@(p.AuthorDeleted ? Url.Content("~/img/muf-mark.png") : (p.AuthorAvatarUrl ?? Url.Content("~/img/muf-mark.png")))" alt="" />
                 @if (p.AuthorDeleted)
                 {
+                    <img class="avatar" src="@Url.Content("~/img/muf-mark.png")" alt="" width="56" height="56" loading="lazy" decoding="async" />
                     <span class="who muted @WhoSize("[account deleted]")">[account deleted]</span>
                 }
                 else
                 {
                     var whoText = p.AuthorBanned ? "[banned]" : p.AuthorName;
+                    <a class="avatar-link" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName" tabindex="-1" aria-hidden="true"><img class="avatar" src="@(p.AuthorAvatarUrl ?? Url.Content("~/img/muf-mark.png"))" alt="" width="56" height="56" loading="lazy" decoding="async" /></a>
                     <a class="who @WhoSize(whoText)" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName">@whoText</a>
                     <span class="rep">@Describe(p.AuthorReputation)</span>
-                    <span class="pcount"><b>@p.AuthorPostCount</b> post@(p.AuthorPostCount == 1 ? "" : "s")</span>
-                    <span class="tcount"><b>@p.AuthorThanksReceived</b> thank@(p.AuthorThanksReceived == 1 ? "" : "s")</span>
+                    <a class="pcount" asp-controller="Profile" asp-action="View" asp-route-name="@p.AuthorName" asp-fragment="posts" title="See all posts by this member"><b>@p.AuthorPostCount</b> post@(p.AuthorPostCount == 1 ? "" : "s")</a>
+                    <a class="tcount" asp-controller="Profile" asp-action="Thanks" asp-route-name="@p.AuthorName" asp-route-type="received" title="See which posts were thanked">★ <b>@p.AuthorThanksReceived</b> received</a>
+                    <a class="tcount" asp-controller="Profile" asp-action="Thanks" asp-route-name="@p.AuthorName" asp-route-type="given" title="See which posts this member thanked">☆ <b>@p.AuthorThanksGiven</b> given</a>
                     @if (p.IsOpeningPost) { <span class="chip" style="margin-top:6px;display:inline-block;">Thread starter</span> }
                 }
             </div>
@@ -159,7 +161,10 @@
             var showReply = canContribute && !Model.IsLocked && !p.AuthorDeleted && !p.IsDeleted && !p.IsCensored;
             var showMod = p.CanModify && !p.IsDeleted && !p.IsCensored;
             // Edit is author-only (admins can't edit other people's posts — only delete/censor).
-            var showEdit = p.CanEdit && !p.IsDeleted && !p.IsCensored;
+            // A soft-deleted post stays editable by its author — editing restores it with their added text.
+            var showEdit = p.CanEdit && !p.IsCensored;
+            // Admin-only permanent delete (a normal delete just hides the post; this erases it).
+            var showHardDelete = p.CanHardDelete;
             // Per-post censor controls. Hidden while the whole thread is censored —
             // the thread banner handles restoring it in that case.
             var showCensor = p.CanCensor && !Model.IsCensored;
@@ -172,7 +177,7 @@
             var showThank = p.CanThank;
             var showThankCount = p.ThankCount > 0;
         }
-        @if (showReply || showMod || showCensor || showReport || showThank || showThankCount || p.Edited)
+        @if (showReply || showMod || showEdit || showHardDelete || showCensor || showReport || showThank || showThankCount || p.Edited)
         {
             <div class="post-actions">
                 @if (p.Edited)
@@ -192,6 +197,43 @@
                 {
                     <span class="dim thank-static" title="Thanks received">★ @p.ThankCount</span>
                 }
+                @* Rare moderation actions — small and muted, kept on the LEFT so a
+                   destructive click doesn't happen by accident. They stand out only on hover. *@
+                @if (showMod || showHardDelete || showCensor)
+                {
+                    <span class="mod-group">
+                        @if (showMod)
+                        {
+                            <form asp-action="DeletePost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Delete this post? It will just be hidden — you can bring it back by editing it.">
+                                <button type="submit" class="btn btn-mod danger">Delete</button>
+                            </form>
+                        }
+                        @if (showHardDelete)
+                        {
+                            <form asp-action="HardDeletePost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Permanently delete this post? This cannot be undone.">
+                                <button type="submit" class="btn btn-mod danger" title="Admin: erase this post for good">Delete permanently</button>
+                            </form>
+                        }
+                        @if (showCensor)
+                        {
+                            if (p.IsCensored)
+                            {
+                                <form asp-action="UncensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Restore this post and its replies?">
+                                    <button type="submit" class="btn btn-mod">Uncensor</button>
+                                </form>
+                            }
+                            else
+                            {
+                                var censorConfirm = p.IsOpeningPost
+                                    ? "Censor this whole thread? It hides the thread and every reply from members to keep people safe."
+                                    : "Censor this post and all replies beneath it to keep people safe?";
+                                <form asp-action="CensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="@censorConfirm">
+                                    <button type="submit" class="btn btn-mod danger">@(p.IsOpeningPost ? "Censor thread" : "Censor")</button>
+                                </form>
+                            }
+                        }
+                    </span>
+                }
                 <span style="flex:1"></span>
                 @if (showReply)
                 {
@@ -199,31 +241,8 @@
                 }
                 @if (showEdit)
                 {
-                    <a class="btn btn-sm" asp-action="EditPost" asp-route-id="@p.Id">Edit</a>
-                }
-                @if (showMod)
-                {
-                    <form asp-action="DeletePost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Delete this post?">
-                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                    </form>
-                }
-                @if (showCensor)
-                {
-                    if (p.IsCensored)
-                    {
-                        <form asp-action="UncensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="Restore this post and its replies?">
-                            <button type="submit" class="btn btn-sm">Uncensor</button>
-                        </form>
-                    }
-                    else
-                    {
-                        var censorConfirm = p.IsOpeningPost
-                            ? "Censor this whole thread? It hides the thread and every reply from members to keep people safe."
-                            : "Censor this post and all replies beneath it to keep people safe?";
-                        <form asp-action="CensorPost" asp-route-id="@p.Id" method="post" style="display:inline" data-confirm="@censorConfirm">
-                            <button type="submit" class="btn btn-sm btn-danger">@(p.IsOpeningPost ? "Censor thread" : "Censor")</button>
-                        </form>
-                    }
+                    <a class="btn btn-sm" asp-action="EditPost" asp-route-id="@p.Id"
+                       title="@(p.IsDeleted ? "Bring this post back and edit it" : "Edit this post")">@(p.IsDeleted ? "Restore &amp; edit" : "Edit")</a>
                 }
                 @if (showReport)
                 {

@@ -221,6 +221,13 @@ public class ThreadController : Controller
             .Select(g => new { g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Key, x => x.Count);
 
+        // Thanks each of this page's authors has GIVEN out (grouped by the giver, UserId).
+        var thanksGiven = await this.db.PostThanks
+            .Where(t => authorIds.Contains(t.UserId))
+            .GroupBy(t => t.UserId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+
         // Which of this page's posts the current viewer has already thanked.
         var myThanks = meId is int myId
             ? (await this.db.PostThanks
@@ -241,6 +248,7 @@ public class ThreadController : Controller
             AuthorReputation = ReputationCalculator.Compute(r.AuthorCreatedAtUtc, postCounts.GetValueOrDefault(r.AuthorId), now),
             AuthorPostCount = postCounts.GetValueOrDefault(r.AuthorId),
             AuthorThanksReceived = thanksReceived.GetValueOrDefault(r.AuthorId),
+            AuthorThanksGiven = thanksGiven.GetValueOrDefault(r.AuthorId),
             ThankCount = thankCounts.GetValueOrDefault(r.Id),
             ViewerThanked = myThanks.Contains(r.Id),
             CanThank = viewerCanThank && meId != r.AuthorId && !r.IsDeleted && !r.IsCensored && !r.AuthorBanned && !r.AuthorDeleted,
@@ -258,6 +266,7 @@ public class ThreadController : Controller
             CanModify = !r.AuthorDeleted && ((meId == r.AuthorId) || isAdmin),
             CanEdit = !r.AuthorDeleted && meId == r.AuthorId,
             CanCensor = isAdmin,
+            CanHardDelete = isAdmin && !r.IsOpeningPost,
             ImageUrls = r.Images.Select(i => this.images.PublicUrl(i)).ToList(),
         }).ToList();
 
@@ -337,6 +346,22 @@ public class ThreadController : Controller
         if (model.Category == ForumCategory.Unknown)
         {
             this.ModelState.AddModelError(nameof(model.Category), "Choose a category.");
+        }
+
+        // Promotional threads are rate-limited to one per member every 30 days (admins exempt),
+        // so the forum can't be flooded with ads. Counts every promo thread by the author in the
+        // window — including ones they later deleted — so delete-and-repost can't dodge the limit.
+        if (model.Category == ForumCategory.Promotional && !this.User.IsInRole("Admin"))
+        {
+            var meId = this.CurrentUserId()!.Value;
+            var cutoff = DateTime.UtcNow.AddDays(-30);
+            var alreadyPosted = await this.db.ForumThreads.AnyAsync(t =>
+                t.AuthorId == meId && t.Category == ForumCategory.Promotional && t.CreatedAtUtc >= cutoff);
+            if (alreadyPosted)
+            {
+                this.ModelState.AddModelError(nameof(model.Category),
+                    "You can post only one Promotional thread every 30 days. Please try again later.");
+            }
         }
 
         if (!this.ModelState.IsValid)
@@ -476,7 +501,9 @@ public class ThreadController : Controller
     [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> EditPost(int id)
     {
-        var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+        // A soft-deleted post is still editable by its author (editing brings it back with their
+        // new text). A moderator-censored post is not — that stays locked. See the POST below.
+        var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsCensored);
         if (post?.Thread is null)
         {
             return this.NotFound();
@@ -502,7 +529,7 @@ public class ThreadController : Controller
     [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> EditPost(int id, EditPostViewModel model)
     {
-        var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+        var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id && !p.IsCensored);
         if (post?.Thread is null)
         {
             return this.NotFound();
@@ -529,6 +556,10 @@ public class ThreadController : Controller
 
         post.Body = model.Body.Trim();
         post.UpdatedAtUtc = DateTime.UtcNow;
+
+        // If the author had deleted this post, editing it brings it back (with their new text /
+        // added comment). Moderator-censored posts never reach here, so this can't undo moderation.
+        post.IsDeleted = false;
 
         // Editing the opening post can also rename the thread — and the slug (URL) follows.
         if (post.IsOpeningPost && !string.IsNullOrWhiteSpace(model.Title))
@@ -580,8 +611,41 @@ public class ThreadController : Controller
         post.IsDeleted = true;
         post.UpdatedAtUtc = DateTime.UtcNow;
         await this.db.SaveChangesAsync();
-        this.TempData["Message"] = "Post deleted.";
+        this.TempData["Message"] = "Post deleted. You can bring it back any time by editing it.";
         return this.Redirect($"/thread/{post.Thread.Slug}");
+    }
+
+    /// <summary>
+    /// Admin: permanently remove a single reply. Unlike a normal delete (which only hides the post
+    /// and can be undone by the author), this erases it for good. The opening post can't be removed
+    /// on its own — deleting that means deleting the whole thread.
+    /// </summary>
+    [HttpPost("post/{id:int}/hard-delete")]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> HardDeletePost(int id)
+    {
+        var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id);
+        if (post?.Thread is null)
+        {
+            return this.NotFound();
+        }
+
+        var slug = post.Thread.Slug;
+        if (post.IsOpeningPost)
+        {
+            this.TempData["Error"] = "The opening post can't be removed on its own — delete the whole thread instead.";
+            return this.Redirect($"/thread/{slug}");
+        }
+
+        // ReplyToPost is a Restrict FK, so first detach any replies that point at this post; the
+        // remaining relations (thanks, images, notifications, reports) cascade on delete.
+        await this.db.Posts.Where(p => p.ReplyToPostId == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.ReplyToPostId, (int?)null));
+        await this.db.Posts.Where(p => p.Id == id).ExecuteDeleteAsync();
+
+        this.TempData["Message"] = "Post permanently deleted.";
+        return this.Redirect($"/thread/{slug}");
     }
 
     /// <summary>
@@ -661,6 +725,12 @@ public class ThreadController : Controller
         {
             this.db.PostThanks.Remove(existing);
             await this.db.SaveChangesAsync();
+
+            // Un-thanked: drop the matching notification so it doesn't linger in the author's bell.
+            await this.db.Notifications
+                .Where(n => n.Type == NotificationType.Thanked && n.PostId == id
+                            && n.ActorUserId == uid && n.RecipientUserId == post.AuthorId)
+                .ExecuteDeleteAsync();
         }
         else
         {
@@ -671,14 +741,22 @@ public class ThreadController : Controller
                 PostAuthorId = post.AuthorId,
                 CreatedAtUtc = DateTime.UtcNow,
             });
+            var thanked = false;
             try
             {
                 await this.db.SaveChangesAsync();
+                thanked = true;
             }
             catch (DbUpdateException)
             {
                 // Double-click / two tabs raced the unique index — already thanked.
                 this.db.ChangeTracker.Clear();
+            }
+
+            // Tell the author who thanked them, linked to the exact post.
+            if (thanked)
+            {
+                await this.notifications.NotifyThankAsync(post, uid);
             }
         }
 

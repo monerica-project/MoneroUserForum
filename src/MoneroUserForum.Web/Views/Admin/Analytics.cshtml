@@ -1,0 +1,110 @@
+@using System.Globalization
+@using System.Text
+@model MoneroUserForum.Web.Models.Admin.AnalyticsViewModel
+@{
+    ViewData["Title"] = "Analytics";
+    var today = DateTime.UtcNow.Date;
+
+    // Inline SVG line chart — no external libs (CSP-safe). series: (name, color, values).
+    Func<int, int, List<(string Name, string Color, int[] Values)>, List<string>, string> Chart =
+        (width, height, series, labels) =>
+    {
+        int padL = 46, padR = 14, padT = 14, padB = 30;
+        double plotW = width - padL - padR, plotH = height - padT - padB;
+        int n = labels.Count;
+        int max = 1;
+        foreach (var s in series) { foreach (var v in s.Values) { if (v > max) max = v; } }
+        // round the axis max up to something tidy
+        int niceMax = max; { int step = (int)Math.Pow(10, Math.Floor(Math.Log10(max))); niceMax = ((max / step) + 1) * step; if (niceMax < 4) niceMax = 4; }
+        Func<int, double> X = i => n <= 1 ? padL + plotW / 2 : padL + plotW * i / (n - 1);
+        Func<int, double> Y = v => padT + plotH * (1 - (double)v / niceMax);
+
+        var sb = new StringBuilder();
+        sb.Append($"<svg viewBox=\"0 0 {width} {height}\" width=\"100%\" style=\"max-width:{width}px;height:auto;\" role=\"img\">");
+        // horizontal gridlines + y labels (5 rows)
+        for (int g = 0; g <= 4; g++)
+        {
+            double yy = padT + plotH * g / 4.0;
+            int val = (int)Math.Round(niceMax * (1 - g / 4.0));
+            sb.Append($"<line x1=\"{padL}\" y1=\"{yy:0.#}\" x2=\"{width - padR}\" y2=\"{yy:0.#}\" stroke=\"rgba(255,255,255,.08)\" />");
+            sb.Append($"<text x=\"{padL - 6}\" y=\"{yy + 3:0.#}\" text-anchor=\"end\" font-size=\"10\" fill=\"#8b949e\">{val}</text>");
+        }
+        // x labels: first, middle, last
+        void XLabel(int i) { if (i >= 0 && i < n) sb.Append($"<text x=\"{X(i):0.#}\" y=\"{height - 10}\" text-anchor=\"middle\" font-size=\"10\" fill=\"#8b949e\">{labels[i]}</text>"); }
+        XLabel(0); if (n > 2) XLabel(n / 2); if (n > 1) XLabel(n - 1);
+        // series
+        foreach (var s in series)
+        {
+            var pts = new StringBuilder();
+            for (int i = 0; i < s.Values.Length; i++) { pts.Append($"{X(i):0.#},{Y(s.Values[i]):0.#} "); }
+            sb.Append($"<polyline fill=\"none\" stroke=\"{s.Color}\" stroke-width=\"2\" stroke-linejoin=\"round\" points=\"{pts.ToString().Trim()}\" />");
+            if (n == 1) { sb.Append($"<circle cx=\"{X(0):0.#}\" cy=\"{Y(s.Values[0]):0.#}\" r=\"3\" fill=\"{s.Color}\" />"); }
+        }
+        sb.Append("</svg>");
+        return sb.ToString();
+    };
+
+    var labels = Model.Points.Select(p => p.Day.ToString("MMM d", CultureInfo.InvariantCulture)).ToList();
+    var postVals = Model.Points.Select(p => p.Posts).ToArray();
+    var replyVals = Model.Points.Select(p => p.Replies).ToArray();
+    var viewVals = Model.Points.Select(p => p.Views).ToArray();
+}
+
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+    <h1 style="margin:0;">Analytics</h1>
+    <span class="muted">@Model.From.ToString("MMM d, yyyy") – @Model.To.ToString("MMM d, yyyy") · @Model.Days day@(Model.Days == 1 ? "" : "s")</span>
+</div>
+
+<div class="panel">
+    <form method="get" asp-action="Analytics" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;">
+            <label style="display:block;font-size:12px;" class="muted">From</label>
+            <input type="date" name="from" value="@Model.From.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label style="display:block;font-size:12px;" class="muted">To</label>
+            <input type="date" name="to" value="@Model.To.ToString("yyyy-MM-dd")" />
+        </div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <span style="flex:1"></span>
+        <span class="thread-meta" style="align-self:center;">
+            <a class="btn btn-sm" asp-action="Analytics" asp-route-from="@today.AddDays(-6).ToString("yyyy-MM-dd")" asp-route-to="@today.ToString("yyyy-MM-dd")">7d</a>
+            <a class="btn btn-sm" asp-action="Analytics" asp-route-from="@today.AddDays(-29).ToString("yyyy-MM-dd")" asp-route-to="@today.ToString("yyyy-MM-dd")">30d</a>
+            <a class="btn btn-sm" asp-action="Analytics" asp-route-from="@today.AddDays(-89).ToString("yyyy-MM-dd")" asp-route-to="@today.ToString("yyyy-MM-dd")">90d</a>
+            <a class="btn btn-sm" asp-action="Analytics" asp-route-from="@today.AddDays(-364).ToString("yyyy-MM-dd")" asp-route-to="@today.ToString("yyyy-MM-dd")">1y</a>
+        </span>
+    </form>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;color:#ff8a3d;">@Model.TotalPosts.ToString("N0")</div>
+        <div class="muted">Posts (new threads)</div>
+    </div>
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;color:#60a5fa;">@Model.TotalReplies.ToString("N0")</div>
+        <div class="muted">Replies</div>
+    </div>
+    <div class="panel" style="margin:0;text-align:center;">
+        <div style="font-size:30px;font-weight:800;color:#34d399;">@Model.TotalViews.ToString("N0")</div>
+        <div class="muted">Views</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+        <h2 class="panel-title" style="margin:0;">Posts &amp; replies</h2>
+        <span class="thread-meta"><span style="color:#ff8a3d;">■</span> Posts <span style="color:#60a5fa;margin-left:8px;">■</span> Replies</span>
+    </div>
+    @Html.Raw(Chart(880, 240, new List<(string, string, int[])> { ("Posts", "#ff8a3d", postVals), ("Replies", "#60a5fa", replyVals) }, labels))
+</div>
+
+<div class="panel">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+        <h2 class="panel-title" style="margin:0;">Views</h2>
+        <span class="thread-meta"><span style="color:#34d399;">■</span> Unique thread views</span>
+    </div>
+    @Html.Raw(Chart(880, 240, new List<(string, string, int[])> { ("Views", "#34d399", viewVals) }, labels))
+</div>
+
+<p><a class="btn btn-sm" asp-action="Index">← Admin dashboard</a></p>

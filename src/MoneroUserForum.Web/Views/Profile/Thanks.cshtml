@@ -1,0 +1,70 @@
+@model MoneroUserForum.Web.Models.Profile.ThanksListViewModel
+@{
+    var kind = Model.IsReceived ? "received" : "given";
+    ViewData["Title"] = $"Thanks {kind} — {Model.DisplayName}";
+}
+
+<div class="panel">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <h1 style="margin:0;">Thanks @kind</h1>
+        <span class="muted">·
+            <a asp-action="View" asp-route-name="@Model.DisplayName">@Model.DisplayName</a>
+        </span>
+    </div>
+
+    <div class="thread-meta" style="margin-bottom:14px;">
+        @if (Model.IsReceived)
+        {
+            <a class="btn btn-sm btn-primary" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="received">★ Received (@Model.Total)</a>
+            <a class="btn btn-sm" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="given">☆ Given</a>
+        }
+        else
+        {
+            <a class="btn btn-sm" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="received">★ Received</a>
+            <a class="btn btn-sm btn-primary" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="given">☆ Given (@Model.Total)</a>
+        }
+    </div>
+
+    @if (Model.Items.Count == 0)
+    {
+        <p class="muted">
+            @(Model.IsReceived
+                ? "No thanks on this member's posts yet."
+                : "This member hasn't thanked any posts yet.")
+        </p>
+    }
+    else
+    {
+        foreach (var it in Model.Items)
+        {
+            <div class="thread-row" style="align-items:flex-start;">
+                <div style="flex:1 1 auto;min-width:0;">
+                    <a asp-controller="Thread" asp-action="View" asp-route-slug="@it.ThreadSlug"
+                       asp-route-page="@it.ThreadPage" asp-fragment="post-@it.PostId">
+                        <strong>@it.ThreadTitle</strong>@(it.IsOpeningPost ? " (opening post)" : "")
+                    </a>
+                    <div class="thread-meta" style="margin-top:2px;">
+                        @if (Model.IsReceived)
+                        {
+                            <text>★ thanked by <a asp-action="View" asp-route-name="@it.OtherName">@it.OtherName</a></text>
+                        }
+                        else
+                        {
+                            <text>☆ you thanked <a asp-action="View" asp-route-name="@it.OtherName">@it.OtherName</a>'s post</text>
+                        }
+                        · @TimeAgo(it.WhenUtc)
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (Model.TotalPages > 1)
+        {
+            <div style="display:flex;gap:10px;margin-top:12px;align-items:center;">
+                <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="@kind" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+                <span class="muted">Page @Model.Page of @Model.TotalPages</span>
+                <span>@if (Model.Page < Model.TotalPages) { <a class="btn btn-sm" asp-action="Thanks" asp-route-name="@Model.DisplayName" asp-route-type="@kind" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+            </div>
+        }
+    }
+</div>

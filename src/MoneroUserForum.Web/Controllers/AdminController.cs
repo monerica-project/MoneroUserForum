@@ -40,6 +40,69 @@ public class AdminController : Controller
         return this.View(vm);
     }
 
+    // ---- Analytics: posts / replies / views over time ----
+
+    [HttpGet("analytics")]
+    public async Task<IActionResult> Analytics(DateTime? from, DateTime? to)
+    {
+        var today = DateTime.UtcNow.Date;
+        var toDate = (to?.Date ?? today);
+        var fromDate = (from?.Date ?? toDate.AddDays(-29)); // default: last 30 days (inclusive)
+        if (fromDate > toDate)
+        {
+            (fromDate, toDate) = (toDate, fromDate);
+        }
+
+        // Clamp to a sane window so the chart and query stay bounded.
+        if ((toDate - fromDate).TotalDays > 366)
+        {
+            fromDate = toDate.AddDays(-366);
+        }
+
+        var startUtc = DateTime.SpecifyKind(fromDate, DateTimeKind.Utc);
+        var endUtc = DateTime.SpecifyKind(toDate.AddDays(1), DateTimeKind.Utc); // exclusive
+
+        // Pull the timestamps in range and bucket by UTC day in memory — avoids any
+        // provider-specific date-truncation translation and is cheap at this scale.
+        var posts = await this.db.Posts
+            .Where(p => p.CreatedAtUtc >= startUtc && p.CreatedAtUtc < endUtc)
+            .Select(p => new { p.CreatedAtUtc, p.IsOpeningPost })
+            .ToListAsync();
+
+        var views = await this.db.ThreadViews
+            .Where(v => v.CreatedAtUtc >= startUtc && v.CreatedAtUtc < endUtc)
+            .Select(v => v.CreatedAtUtc)
+            .ToListAsync();
+
+        static DateOnly Bucket(DateTime utc) => DateOnly.FromDateTime(DateTime.SpecifyKind(utc, DateTimeKind.Utc).Date);
+
+        var openByDay = posts.Where(p => p.IsOpeningPost).GroupBy(p => Bucket(p.CreatedAtUtc)).ToDictionary(g => g.Key, g => g.Count());
+        var replyByDay = posts.Where(p => !p.IsOpeningPost).GroupBy(p => Bucket(p.CreatedAtUtc)).ToDictionary(g => g.Key, g => g.Count());
+        var viewByDay = views.GroupBy(Bucket).ToDictionary(g => g.Key, g => g.Count());
+
+        var points = new List<AnalyticsPoint>();
+        for (var d = DateOnly.FromDateTime(fromDate); d <= DateOnly.FromDateTime(toDate); d = d.AddDays(1))
+        {
+            points.Add(new AnalyticsPoint
+            {
+                Day = d,
+                Posts = openByDay.GetValueOrDefault(d),
+                Replies = replyByDay.GetValueOrDefault(d),
+                Views = viewByDay.GetValueOrDefault(d),
+            });
+        }
+
+        return this.View(new AnalyticsViewModel
+        {
+            From = DateOnly.FromDateTime(fromDate),
+            To = DateOnly.FromDateTime(toDate),
+            Points = points,
+            TotalPosts = points.Sum(p => p.Posts),
+            TotalReplies = points.Sum(p => p.Replies),
+            TotalViews = points.Sum(p => p.Views),
+        });
+    }
+
     // ---- Contact inbox (external feedback from the public Contact page) ----
 
     [HttpGet("messages")]

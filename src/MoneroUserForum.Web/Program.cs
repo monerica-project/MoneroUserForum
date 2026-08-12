@@ -175,7 +175,20 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/error/{0}");
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // Cache lifetimes: assets requested with a version stamp (asp-append-version adds ?v=…)
+    // can be cached forever because the URL changes whenever the file does. Everything else
+    // (favicon, og image, un-versioned references) gets a modest one-day cache so edits still
+    // propagate promptly. Fixes the Lighthouse "use efficient cache lifetimes" flag.
+    OnPrepareResponse = ctx =>
+    {
+        var headers = ctx.Context.Response.Headers;
+        headers.CacheControl = ctx.Context.Request.Query.ContainsKey("v")
+            ? "public,max-age=31536000,immutable"
+            : "public,max-age=86400";
+    },
+});
 
 // Canonicalize to lowercase: 301 any GET/HEAD whose PATH contains uppercase letters to the
 // lowercased path (query string preserved). Runs after UseStaticFiles so on-disk assets are

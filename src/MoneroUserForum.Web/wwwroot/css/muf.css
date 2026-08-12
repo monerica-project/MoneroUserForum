@@ -10,7 +10,7 @@
   --border-2: rgba(255, 255, 255, 0.18);
   --fg: #ededed;
   --fg-muted: rgba(255, 255, 255, 0.62);
-  --fg-dim: rgba(255, 255, 255, 0.40);
+  --fg-dim: rgba(255, 255, 255, 0.55);
   --green: #4caf50;
   --red: #ff5252;
   --radius: 8px;
@@ -100,6 +100,11 @@ img { max-width: 100%; }
 
 /* ---- Panels / cards ---- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin: 0 0 16px; }
+/* Clickable panel tiles (e.g. the admin dashboard): highlight the whole box on
+   hover instead of underlining the text inside. */
+a.panel { transition: border-color .12s, background .12s, box-shadow .12s; }
+a.panel:hover, a.panel:hover * { text-decoration: none; }
+a.panel:hover { border-color: var(--mono-orange); background: rgba(255, 102, 0, 0.06); box-shadow: 0 0 0 1px var(--mono-orange); }
 .panel-title { margin: 0 0 12px; font-size: 16px; font-weight: 800; }
 /* Network cards: highlight the box on hover, never underline the text */
 .net-card, .net-card:hover, .net-card * { text-decoration: none !important; }
@@ -129,6 +134,16 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
 .btn-danger { border-color: rgba(255,82,82,.5); color: #ff8a8a; }
 .btn-sm { padding: 5px 10px; font-size: 13px; }
 .btn-block { width: 100%; justify-content: center; }
+/* Rarely-needed moderation actions (delete / delete permanently / censor): small,
+   muted, and tucked to the left so they aren't clicked by accident. They only gain
+   emphasis (and a red tint for the destructive ones) on hover. */
+.mod-group { display: inline-flex; gap: 6px; align-items: center; }
+.btn-mod {
+  padding: 1px 7px; font-size: 11px; line-height: 1.5;
+  opacity: 0.5; color: var(--fg-muted); border-color: var(--border); background: transparent;
+}
+.btn-mod:hover { opacity: 1; color: var(--fg); border-color: var(--fg-dim); }
+.btn-mod.danger:hover { color: #ff8a8a; border-color: rgba(255,82,82,.6); }
 
 /* ---- Forms ---- */
 .form-group { margin: 0 0 14px; }
@@ -166,6 +181,8 @@ a.chip:hover { filter: brightness(1.18); text-decoration: none; }
 .cat-Announcements      { color:#fb7185; border-color:rgba(251,113,133,.45); background:rgba(251,113,133,.10); }  /* red — important */
 .cat-ExchangeTalk       { color:#22d3ee; border-color:rgba(34,211,238,.45);  background:rgba(34,211,238,.10); }  /* cyan — exchanges/swaps */
 .cat-BusinessDiscussion { color:#34d399; border-color:rgba(52,211,153,.45);  background:rgba(52,211,153,.10); }  /* green — money/business */
+.cat-Promotional        { color:#1a1400; border-color:#fbbf24; background:#fbbf24; font-weight:800; }  /* filled gold — stands out as a paid/promo post */
+a.cat-Promotional:hover { background:#fcd34d; border-color:#fcd34d; }
 .rep { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); }
 
 /* ---- Thread / post lists ---- */
@@ -175,6 +192,10 @@ a.chip:hover { filter: brightness(1.18); text-decoration: none; }
 .thread-row-stats { flex: 0 0 auto; text-align: right; }
 .thread-title { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .thread-meta { font-size: 12px; color: var(--fg-dim); }
+/* Inline links inside meta text are distinguished by underline, not color alone
+   (WCAG link-in-text-block / Lighthouse "links rely on color"). Chips and buttons
+   opt out — their shape/background is the non-color cue. */
+.thread-meta a:not(.chip):not(.btn) { text-decoration: underline; }
 
 .post { border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 14px; overflow: hidden; }
 .post-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
@@ -306,6 +327,10 @@ a.chip:hover { filter: brightness(1.18); text-decoration: none; }
   background: var(--bg-2); text-align: center; min-width: 0;
 }
 .post-author .avatar { width: 56px; height: 56px; }
+/* Avatar links to the author's profile (like the name). Subtle orange ring on hover. */
+.avatar-link { display: inline-block; line-height: 0; border-radius: 50%; }
+.avatar-link .avatar { transition: box-shadow .12s ease, border-color .12s ease; }
+.avatar-link:hover .avatar { border-color: var(--mono-orange); box-shadow: 0 0 0 2px var(--mono-orange); }
 /* A username always shows in FULL on one line — never truncated with "…". Longer names step down
    to a smaller font (by length, computed in the view) so they fit the narrow column instead of
    being cut off. No JS needed, so it works over Tor / no-JS too. */

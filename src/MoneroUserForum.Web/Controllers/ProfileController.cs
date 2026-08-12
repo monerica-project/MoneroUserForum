@@ -43,8 +43,10 @@ public class ProfileController : Controller
         return user is null ? this.Challenge() : this.RedirectToAction(nameof(this.View), new { name = user.DisplayName });
     }
 
+    private const int ProfilePostsPageSize = 10;
+
     [HttpGet("{name}")]
-    public async Task<IActionResult> View(string name)
+    public async Task<IActionResult> View(string name, int page = 1)
     {
         var normalized = name.Trim().ToLowerInvariant();
         var user = await this.users.FindByNameAsync(normalized);
@@ -54,7 +56,33 @@ public class ProfileController : Controller
         }
 
         var postCount = await this.db.Posts.CountAsync(p => p.AuthorId == user.Id && !p.IsDeleted);
+        // Thanks this member has been given ON their posts (received) vs. thanks they handed out (given).
+        var thanksReceived = await this.db.PostThanks.CountAsync(t => t.PostAuthorId == user.Id);
+        var thanksGiven = await this.db.PostThanks.CountAsync(t => t.UserId == user.Id);
         var meId = this.users.GetUserId(this.User);
+
+        // This member's threads and replies, newest first, paged. Only publicly-visible content
+        // (not deleted, not censored, in a live thread).
+        var postsQuery = this.db.Posts
+            .Where(p => p.AuthorId == user.Id && !p.IsDeleted && !p.IsCensored
+                && !p.Thread!.IsDeleted && !p.Thread!.IsCensored);
+        var visiblePosts = await postsQuery.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(visiblePosts / (double)ProfilePostsPageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var recentPosts = await postsQuery
+            .OrderByDescending(p => p.CreatedAtUtc)
+            .Skip((page - 1) * ProfilePostsPageSize)
+            .Take(ProfilePostsPageSize)
+            .Select(p => new ProfilePostItem
+            {
+                PostId = p.Id,
+                ThreadSlug = p.Thread!.Slug,
+                ThreadTitle = p.Thread!.Title,
+                IsOpeningPost = p.IsOpeningPost,
+                CreatedAtUtc = p.CreatedAtUtc,
+                Snippet = p.Body.Length > 180 ? p.Body.Substring(0, 180) : p.Body,
+            })
+            .ToListAsync();
 
         return this.View(new ProfileViewModel
         {
@@ -62,6 +90,11 @@ public class ProfileController : Controller
             AvatarUrl = string.IsNullOrEmpty(user.AvatarPath) ? null : this.images.PublicUrl(user.AvatarPath),
             JoinedAtUtc = user.CreatedAtUtc,
             PostCount = postCount,
+            ThanksReceived = thanksReceived,
+            ThanksGiven = thanksGiven,
+            RecentPosts = recentPosts,
+            Page = page,
+            TotalPages = totalPages,
             Reputation = ReputationCalculator.Compute(user.CreatedAtUtc, postCount, DateTime.UtcNow),
             IsBanned = user.IsBanned,
             IsSelf = meId == user.Id.ToString(),
@@ -80,6 +113,61 @@ public class ProfileController : Controller
             Link2Url = user.Link2Url,
             Link3Label = user.Link3Label,
             Link3Url = user.Link3Url,
+        });
+    }
+
+    private const int ThanksPageSize = 20;
+
+    /// <summary>Lists the actual posts behind a member's "thanks received" / "thanks given" totals,
+    /// so it's clear which posts were thanked and by/for whom.</summary>
+    [HttpGet("{name}/thanks")]
+    public async Task<IActionResult> Thanks(string name, string type = "received", int page = 1)
+    {
+        var normalized = name.Trim().ToLowerInvariant();
+        var user = await this.users.FindByNameAsync(normalized);
+        if (user is null || user.IsDeleted)
+        {
+            return this.NotFound();
+        }
+
+        var received = !string.Equals(type, "given", StringComparison.OrdinalIgnoreCase);
+
+        // received → thanks on THIS member's posts; given → thanks THIS member handed out.
+        // Restrict to still-visible posts/threads.
+        var baseQuery = this.db.PostThanks
+            .Where(t => received ? t.PostAuthorId == user.Id : t.UserId == user.Id)
+            .Where(t => !t.Post!.IsDeleted && !t.Post!.IsCensored
+                && !t.Post!.Thread!.IsDeleted && !t.Post!.Thread!.IsCensored
+                && t.Post!.Author!.IsApproved && !t.Post!.Author!.IsDeleted); // only publicly-visible posts
+
+        var total = await baseQuery.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)ThanksPageSize));
+        page = Math.Clamp(page, 1, totalPages);
+
+        var items = await baseQuery
+            .OrderByDescending(t => t.CreatedAtUtc)
+            .Skip((page - 1) * ThanksPageSize)
+            .Take(ThanksPageSize)
+            .Select(t => new ThanksListItem
+            {
+                PostId = t.PostId,
+                ThreadSlug = t.Post!.Thread!.Slug,
+                ThreadTitle = t.Post!.Thread!.Title,
+                IsOpeningPost = t.Post!.IsOpeningPost,
+                ThreadPage = (this.db.Posts.Count(p => p.ThreadId == t.Post!.ThreadId && p.CreatedAtUtc < t.Post!.CreatedAtUtc) / 20) + 1, // 20 = thread posts-per-page
+                OtherName = received ? t.User!.DisplayName : t.Post!.Author!.DisplayName,
+                WhenUtc = t.CreatedAtUtc,
+            })
+            .ToListAsync();
+
+        return this.View(new ThanksListViewModel
+        {
+            DisplayName = user.DisplayName,
+            IsReceived = received,
+            Total = total,
+            Items = items,
+            Page = page,
+            TotalPages = totalPages,
         });
     }
 

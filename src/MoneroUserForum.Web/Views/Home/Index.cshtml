@@ -49,7 +49,7 @@
                 <a asp-controller="Profile" asp-action="View" asp-route-name="@Model.NewestMemberName"><strong>@Model.NewestMemberName</strong></a>
                 @if (Model.NewestMemberJoinedUtc is DateTime nj)
                 {
-                    <text>· <time datetime="@nj.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" style="opacity:.75;" title="Joined (UTC)">@nj.ToString("yyyy-MM-ddTHH:mm'Z'")</time></text>
+                    <div style="margin-top:2px;opacity:.75;">Joined <time datetime="@nj.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" title="Joined (UTC)">@nj.ToString("yyyy-MM-ddTHH:mm'Z'")</time></div>
                 }
             </div>
         }

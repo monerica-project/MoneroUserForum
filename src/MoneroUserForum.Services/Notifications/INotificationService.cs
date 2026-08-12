@@ -18,4 +18,8 @@ public interface INotificationService
 
     /// <summary>Notifies every admin that a member reported a post (into the review queue).</summary>
     Task NotifyReportAsync(Report report, CancellationToken ct = default);
+
+    /// <summary>Notifies a post's author that <paramref name="actorUserId"/> thanked their post.
+    /// In-app only (no email — thanks are frequent and low-priority). Saves its own changes.</summary>
+    Task NotifyThankAsync(Post post, int actorUserId, CancellationToken ct = default);
 }

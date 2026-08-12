@@ -61,6 +61,9 @@ public class PostView
     /// <summary>Total thanks this author has received across all their posts (shown under their avatar).</summary>
     public int AuthorThanksReceived { get; set; }
 
+    /// <summary>Total thanks this author has given out to other people's posts (shown under their avatar).</summary>
+    public int AuthorThanksGiven { get; set; }
+
     /// <summary>Thanks this specific post has received.</summary>
     public int ThankCount { get; set; }
 
@@ -95,6 +98,10 @@ public class PostView
 
     /// <summary>Viewer is an admin, so they can censor / uncensor this post.</summary>
     public bool CanCensor { get; set; }
+
+    /// <summary>Viewer is an admin, so they can PERMANENTLY delete this reply (not the opening post).
+    /// A normal delete only hides the post (author can restore it by editing); this removes it for good.</summary>
+    public bool CanHardDelete { get; set; }
 
     public IReadOnlyList<string> ImageUrls { get; set; } = Array.Empty<string>();
 }

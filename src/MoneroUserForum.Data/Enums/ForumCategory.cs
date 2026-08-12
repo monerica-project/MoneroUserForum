@@ -28,4 +28,7 @@ public enum ForumCategory
 
     [Description("Business Discussion")]
     BusinessDiscussion = 6,
+
+    [Description("Promotional")]
+    Promotional = 7,
 }
