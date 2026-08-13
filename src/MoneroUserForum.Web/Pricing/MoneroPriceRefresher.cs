@@ -4,15 +4,15 @@ using System.Text.Json.Serialization;
 namespace MoneroUserForum.Web.Pricing;
 
 /// <summary>
-/// Polls moneropricenow.com for the XMR price once a minute and caches it in
-/// <see cref="MoneroPriceService"/>. moneropricenow.com serves that value from its own
-/// 15-second cache, so this polling never overwhelms it. Failures are non-fatal — the
-/// last good price keeps showing.
+/// Polls the MoneroPriceNow public CDN API for the XMR price once a minute and caches it in
+/// <see cref="MoneroPriceService"/>. api.moneropricenow.com is served from Bunny's edge (the file
+/// is republished every ~30s), so this polling hits the CDN, never the web origin. Failures are
+/// non-fatal — the last good price keeps showing.
 /// </summary>
 public sealed class MoneroPriceRefresher : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
-    private const string Url = "https://moneropricenow.com/api/price/xmr-usdt.json";
+    private const string Url = "https://api.moneropricenow.com/xmr-usdt.json";
 
     private readonly IHttpClientFactory httpFactory;
     private readonly MoneroPriceService service;
@@ -42,19 +42,20 @@ public sealed class MoneroPriceRefresher : BackgroundService
         {
             var client = this.httpFactory.CreateClient("moneroprice");
             var dto = await client.GetFromJsonAsync<PriceDto>(Url, ct);
-            if (dto is { PriceUsdt: > 0 })
+            if (dto is { Price: > 0 })
             {
-                this.service.Set(dto.PriceUsdt, dto.AsOfUtc == default ? DateTime.UtcNow : dto.AsOfUtc);
+                this.service.Set(dto.Price, dto.PublishedUtc == default ? DateTime.UtcNow : dto.PublishedUtc);
             }
         }
         catch (Exception ex)
         {
-            this.logger.LogWarning(ex, "XMR price refresh from moneropricenow.com failed.");
+            this.logger.LogWarning(ex, "XMR price refresh from api.moneropricenow.com failed.");
         }
     }
 
     private sealed record PriceDto(
-        [property: JsonPropertyName("priceUsdt")] decimal PriceUsdt,
-        [property: JsonPropertyName("asOfUtc")] DateTime AsOfUtc,
+        [property: JsonPropertyName("price")] decimal Price,
+        [property: JsonPropertyName("published_utc")] DateTime PublishedUtc,
+        [property: JsonPropertyName("pair")] string? Pair,
         [property: JsonPropertyName("source")] string? Source);
 }
