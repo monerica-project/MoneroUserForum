@@ -1,6 +1,8 @@
 @model EditPostViewModel
 @{ ViewData["Title"] = "Edit post"; }
-<div class="panel" style="max-width:720px;">
+<div class="thread-layout">
+<div class="thread-main">
+<div class="panel">
     <h1>Edit post</h1>
     <form asp-action="EditPost" asp-route-id="@Model.PostId" method="post">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -20,4 +22,10 @@
         <button type="submit" class="btn btn-primary">Save changes</button>
         <a class="btn" href="/thread/@Model.ThreadSlug#post-@Model.PostId">Cancel</a>
     </form>
+</div>
+</div>
+<aside class="thread-side">
+    @await Component.InvokeAsync("MoneroPrice")
+    @await Component.InvokeAsync("Sponsors", new { side = true })
+</aside>
 </div>
