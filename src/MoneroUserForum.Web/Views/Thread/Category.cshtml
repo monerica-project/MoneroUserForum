@@ -12,13 +12,19 @@
             <a class="btn btn-primary" asp-controller="Thread" asp-action="Create" asp-route-category="@Model.Category">New thread</a>
         }
     </div>
+    <div class="sort-bar">
+        <span class="muted">Sort:</span>
+        <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="recent" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Recent</a>
+        <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="views" class="sort-link @(Model.Sort == "views" ? "active" : null)">Most viewed</a>
+        <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="replies" class="sort-link @(Model.Sort == "replies" ? "active" : null)">Most replies</a>
+    </div>
     @await Html.PartialAsync("_ThreadRows", Model.Threads)
 
     @if (Model.Page > 1 || Model.HasMore)
     {
         <div style="display:flex;justify-content:space-between;margin-top:14px;">
-            <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
-            <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
+            <span>@if (Model.Page > 1) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-sort="@Model.Sort" asp-route-page="@(Model.Page - 1)">← Newer</a> }</span>
+            <span>@if (Model.HasMore) { <a class="btn btn-sm" asp-route-category="@Model.Category" asp-route-sort="@Model.Sort" asp-route-page="@(Model.Page + 1)">Older →</a> }</span>
         </div>
     }
 </div>

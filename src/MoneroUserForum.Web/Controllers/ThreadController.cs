@@ -47,11 +47,22 @@ public class ThreadController : Controller
     private IQueryable<ForumThread> VisibleThreads()
         => this.db.ForumThreads.Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && t.Author!.IsApproved);
 
-    public async Task<List<ThreadListItem>> BuildListAsync(IQueryable<ForumThread> query, int page)
+    public async Task<List<ThreadListItem>> BuildListAsync(IQueryable<ForumThread> query, int page, string sort = "recent")
     {
-        var items = await query
-            .OrderByDescending(t => t.IsPinned)
-            .ThenByDescending(t => t.LastPostAtUtc)
+        // Same sort options as the homepage: pinned first, then recent / most viewed / most replies.
+        var pinned = query.OrderByDescending(t => t.IsPinned);
+        var ordered = sort switch
+        {
+            "views" => pinned
+                .ThenByDescending(t => t.Views.Count)
+                .ThenByDescending(t => t.LastPostAtUtc),
+            "replies" => pinned
+                .ThenByDescending(t => t.Posts.Count(p => !p.IsOpeningPost && !p.Author!.IsDeleted && p.Author!.IsApproved))
+                .ThenByDescending(t => t.LastPostAtUtc),
+            _ => pinned.ThenByDescending(t => t.LastPostAtUtc),
+        };
+
+        var items = await ordered
             .Skip((page - 1) * PageSize)
             .Take(PageSize)
             .Select(t => new ThreadListItem
@@ -92,7 +103,7 @@ public class ThreadController : Controller
     }
 
     [HttpGet("category/{category}")]
-    public async Task<IActionResult> Category(ForumCategory category, int page = 1)
+    public async Task<IActionResult> Category(ForumCategory category, int page = 1, string sort = "recent")
     {
         if (category == ForumCategory.Unknown)
         {
@@ -100,7 +111,8 @@ public class ThreadController : Controller
         }
 
         page = Math.Max(1, page);
-        var items = await this.BuildListAsync(this.VisibleThreads().Where(t => t.Category == category), page);
+        sort = sort == "views" || sort == "replies" ? sort : "recent";
+        var items = await this.BuildListAsync(this.VisibleThreads().Where(t => t.Category == category), page, sort);
         return this.View(new ThreadListViewModel
         {
             Threads = items,
@@ -108,6 +120,7 @@ public class ThreadController : Controller
             Heading = Support.ForumDisplay.Describe(category),
             Page = page,
             HasMore = items.Count == PageSize,
+            Sort = sort,
         });
     }
 
