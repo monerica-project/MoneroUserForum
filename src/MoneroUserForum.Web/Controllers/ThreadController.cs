@@ -283,8 +283,17 @@ public class ThreadController : Controller
             ImageUrls = r.Images.Select(i => this.images.PublicUrl(i)).ToList(),
         }).ToList();
 
-        var following = meId is int uid && await this.db.ThreadSubscriptions
-            .AnyAsync(s => s.ThreadId == thread.Id && s.UserId == uid && !s.IsMuted);
+        // Notifications for new replies are ON by default for anyone who has posted in the
+        // thread (or explicitly followed it) — unless they've muted (unsubscribed from) it.
+        var following = false;
+        if (meId is int uid)
+        {
+            var sub = await this.db.ThreadSubscriptions.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.ThreadId == thread.Id && s.UserId == uid);
+            var isMuted = sub is { IsMuted: true };
+            var isParticipant = await this.db.Posts.AnyAsync(p => p.ThreadId == thread.Id && p.AuthorId == uid);
+            following = !isMuted && (isParticipant || sub is { IsMuted: false });
+        }
 
         // Image-posting perk (approved ≥1 month) — drives the reply form's picker + hint.
         var canPostImages = false;
@@ -320,6 +329,49 @@ public class ThreadController : Controller
             CanPostImages = canPostImages,
             ImageUnlockUtc = imageUnlockUtc,
         });
+    }
+
+    // Toggle per-thread reply notifications for the current user. ON by default (posting in a
+    // thread opts you in); this flips between subscribed and unsubscribed (muted).
+    [Authorize]
+    [HttpPost("{slug}/notifications")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleNotifications(string slug)
+    {
+        var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Slug == slug && !t.IsDeleted);
+        if (thread is null || this.CurrentUserId() is not int uid)
+        {
+            return this.NotFound();
+        }
+
+        var sub = await this.db.ThreadSubscriptions
+            .FirstOrDefaultAsync(s => s.ThreadId == thread.Id && s.UserId == uid);
+        var isMuted = sub is { IsMuted: true };
+        var isParticipant = await this.db.Posts.AnyAsync(p => p.ThreadId == thread.Id && p.AuthorId == uid);
+        var isOn = !isMuted && (isParticipant || sub is { IsMuted: false });
+
+        // If notifications are currently ON, this turns them OFF (mute); otherwise turn ON.
+        var wantMuted = isOn;
+        if (sub is null)
+        {
+            this.db.ThreadSubscriptions.Add(new ThreadSubscription
+            {
+                ThreadId = thread.Id,
+                UserId = uid,
+                IsMuted = wantMuted,
+                CreatedAtUtc = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            sub.IsMuted = wantMuted;
+        }
+
+        await this.db.SaveChangesAsync();
+        this.TempData["Message"] = wantMuted
+            ? "Unsubscribed — you won't be notified of new replies in this thread."
+            : "Subscribed — you'll be notified of new replies in this thread.";
+        return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
     }
 
     private string VisitorKey()

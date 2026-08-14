@@ -49,6 +49,16 @@
                 · <b style="color:var(--fg)">@Model.UniqueViews</b> unique view@(Model.UniqueViews == 1 ? "" : "s")
             </div>
         </div>
+        @if (User.Identity?.IsAuthenticated == true && !User.HasClaim("banned", "true"))
+        {
+            <form asp-controller="Thread" asp-action="ToggleNotifications" asp-route-slug="@Model.Slug" method="post" style="display:inline-flex;align-items:center;flex:0 0 auto;">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-sm" style="white-space:nowrap;"
+                        title="@(Model.IsFollowing ? "You're notified of new replies in this thread. Click to unsubscribe." : "Get notified when someone replies in this thread.")">
+                    @(Model.IsFollowing ? "🔔 Notifications on" : "🔕 Notifications off")
+                </button>
+            </form>
+        }
         @if (User.IsInRole("Admin"))
         {
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

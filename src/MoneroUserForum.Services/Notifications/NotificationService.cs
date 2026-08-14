@@ -66,14 +66,29 @@ public class NotificationService : INotificationService
             }
         }
 
-        // 3) Thread followers (not muted, not already notified) → thread activity.
+        // 3) Everyone who has posted in this thread (participants) is notified of new
+        //    replies BY DEFAULT — this is the "someone replied to my posts" alert — plus any
+        //    explicit followers. A member is opted-in unless they've MUTED (unsubscribed from)
+        //    the thread via the Notifications toggle on the thread page.
+        var mutedIds = (await this.db.ThreadSubscriptions
+            .Where(s => s.ThreadId == post.ThreadId && s.IsMuted)
+            .Select(s => s.UserId)
+            .ToListAsync(ct)).ToHashSet();
+
+        var participantIds = await this.db.Posts
+            .Where(p => p.ThreadId == post.ThreadId && !p.Author!.IsDeleted && p.Author!.IsApproved)
+            .Select(p => p.AuthorId)
+            .Distinct()
+            .ToListAsync(ct);
+
         var followerIds = await this.db.ThreadSubscriptions
             .Where(s => s.ThreadId == post.ThreadId && !s.IsMuted)
             .Select(s => s.UserId)
             .ToListAsync(ct);
 
-        foreach (var uid in followerIds)
+        foreach (var uid in participantIds.Concat(followerIds))
         {
+            if (mutedIds.Contains(uid)) { continue; } // they unsubscribed from this thread
             if (notified.Add(uid))
             {
                 this.Add(NotificationType.ThreadActivity, uid, post, now);
