@@ -78,4 +78,4 @@ CI/deploy.sh                — publish + deploy to the reference host
 
 ## License
 
-No license has been chosen yet — see the repository owner.
+MIT — see the [`LICENSE`](LICENSE) file.
