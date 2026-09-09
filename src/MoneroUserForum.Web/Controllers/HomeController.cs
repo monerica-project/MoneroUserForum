@@ -205,4 +205,7 @@ public class HomeController : Controller
 
     [Route("about")]
     public IActionResult About() => this.View();
+
+    [Route("terms")]
+    public IActionResult Terms() => this.View();
 }
