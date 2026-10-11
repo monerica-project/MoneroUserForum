@@ -1,0 +1,23 @@
+@model (int PendingMembers, int UnhandledMessages)
+@{
+    var total = Model.PendingMembers + Model.UnhandledMessages;
+    var parts = new List<string>();
+    if (Model.PendingMembers > 0)
+    {
+        parts.Add($"{Model.PendingMembers} awaiting approval");
+    }
+
+    if (Model.UnhandledMessages > 0)
+    {
+        parts.Add($"{Model.UnhandledMessages} new message{(Model.UnhandledMessages == 1 ? string.Empty : "s")}");
+    }
+
+    var title = total > 0 ? "Admin: " + string.Join(", ", parts) : "Admin";
+}
+<a class="@(total > 0 ? "nav-admin-alert" : null)" asp-controller="Admin" asp-action="Index" title="@title">
+    <span>Admin</span>
+    @if (total > 0)
+    {
+        <span class="nav-badge">@(total > 99 ? "99+" : total.ToString())</span>
+    }
+</a>
