@@ -61,6 +61,18 @@ public class AppUser : IdentityUser<int>
     /// <summary>Member's PGP public key (shown on their profile).</summary>
     public string? PgpPublicKey { get; set; }
 
+    /// <summary>Primary-key fingerprint of <see cref="PgpPublicKey"/> (uppercase hex).</summary>
+    public string? PgpFingerprint { get; set; }
+
+    /// <summary>When the member proved they hold the key (decrypted our code). Null = not verified.
+    /// Only verified keys are shown to others and can receive private messages.</summary>
+    public DateTime? PgpVerifiedAtUtc { get; set; }
+
+    /// <summary>Pending ownership challenge: SHA-256 of the one-time code, the code encrypted to the key, and its expiry.</summary>
+    public string? PgpChallengeHash { get; set; }
+    public string? PgpChallengeArmored { get; set; }
+    public DateTime? PgpChallengeExpiresUtc { get; set; }
+
     /// <summary>Monero donation address shown on the profile (rendered with a tip QR code).</summary>
     public string? MoneroDonationAddress { get; set; }
 

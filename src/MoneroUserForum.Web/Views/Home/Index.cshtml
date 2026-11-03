@@ -19,7 +19,7 @@
         </div>
         <div class="sort-bar">
             <span class="muted">Sort:</span>
-            <a asp-controller="Home" asp-action="Index" asp-route-sort="recent" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Recent</a>
+            <a asp-controller="Home" asp-action="Index" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Most recent</a>
             <a asp-controller="Home" asp-action="Index" asp-route-sort="views" class="sort-link @(Model.Sort == "views" ? "active" : null)">Most viewed</a>
             <a asp-controller="Home" asp-action="Index" asp-route-sort="replies" class="sort-link @(Model.Sort == "replies" ? "active" : null)">Most replies</a>
         </div>
@@ -49,7 +49,7 @@
                 <a asp-controller="Profile" asp-action="View" asp-route-name="@Model.NewestMemberName"><strong>@Model.NewestMemberName</strong></a>
                 @if (Model.NewestMemberJoinedUtc is DateTime nj)
                 {
-                    <div style="margin-top:2px;opacity:.75;">Joined <time datetime="@nj.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" title="Joined (UTC)">@nj.ToString("yyyy-MM-ddTHH:mm'Z'")</time></div>
+                    <div style="margin-top:2px;opacity:.75;">Joined <time class="local-time" datetime="@nj.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" title="Joined (UTC)">@nj.ToString("yyyy-MM-ddTHH:mm'Z'")</time></div>
                 }
             </div>
         }

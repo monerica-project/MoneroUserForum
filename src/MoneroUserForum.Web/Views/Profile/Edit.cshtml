@@ -12,7 +12,7 @@
                 <img class="avatar avatar-lg" src="@(Model.CurrentAvatarUrl ?? Url.Content("https://cdn.monerouserforum.com/muf-mark.png"))" alt="" />
                 <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif" />
             </div>
-            <div class="hint">JPG/PNG/WEBP/GIF, under 3 MB. Approved members only.</div>
+            <div class="hint">JPG/PNG/WEBP/GIF, under 3 MB (animated: 500 KB). Location and camera data are removed. Approved members only.</div>
         </div>
 
         <div class="form-group">
@@ -62,9 +62,30 @@
             <input asp-for="MoneroDonationAddress" placeholder="4... or 8..." />
             <div class="hint">Shown on your profile with a tip QR code so others can send you XMR from their own wallet.</div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="pgp">
             <label asp-for="PgpPublicKey"></label>
-            <textarea asp-for="PgpPublicKey" rows="6" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"></textarea>
+            @if (!string.IsNullOrWhiteSpace(Model.PgpPublicKey))
+            {
+                <div style="margin-bottom:6px;">
+                    @if (Model.PgpVerifiedAtUtc is not null)
+                    {
+                        <span class="chip pgp-verified">✓ Verified</span>
+                    }
+                    else
+                    {
+                        <span class="chip pgp-unverified">Not verified</span> <a asp-action="Pgp">Verify it now →</a>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.PgpFingerprint))
+                    {
+                        <code class="pgp-fp" style="margin-left:6px;">@MoneroUserForum.Services.Pgp.PgpTools.FormatFingerprint(Model.PgpFingerprint)</code>
+                    }
+                </div>
+            }
+            <textarea asp-for="PgpPublicKey" rows="6" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"></textarea>
+            <span asp-validation-for="PgpPublicKey" class="text-danger"></span>
+            <div class="hint">Private messages here must be PGP encrypted, so you need a verified key to send or receive them.
+                After saving, you'll decrypt a short code to prove the key is yours. Only verified keys are shown to others.
+                Export it with <code>gpg --armor --export you@@example.com</code>.</div>
         </div>
         <button type="submit" class="btn btn-primary">Save profile</button>
     </form>

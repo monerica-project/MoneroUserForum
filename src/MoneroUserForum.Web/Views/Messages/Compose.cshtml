@@ -7,15 +7,19 @@
 <div class="thread-main">
 <div class="panel">
     <h1>New message</h1>
+    <p class="muted" style="margin-top:-4px;">Private messages must be <strong>PGP encrypted</strong> to the recipient's verified key. <a asp-action="Encryption">How it works</a></p>
 @if (!string.IsNullOrEmpty(dmBlocked))
 {
     <div class="notice" role="alert" style="padding:12px 14px;border:1px solid var(--mono-orange);border-radius:var(--radius);background:var(--bg);">
         @dmBlocked
+        @if (dmBlocked == MoneroUserForum.Web.Controllers.MessagesController.NeedOwnKeyMessage)
+        {
+            <div style="margin-top:8px;"><a class="btn btn-sm btn-primary" asp-controller="Profile" asp-action="Pgp">Add or verify your PGP key</a></div>
+        }
     </div>
 }
 else
 {
-    <div id="dm-status" role="alert" style="display:none;"></div>
     <form asp-action="Send" method="post">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
         <div class="form-group" style="position:relative;">
@@ -24,10 +28,19 @@ else
             <div id="to-suggest" class="search-suggest" style="display:none;left:0;right:0;max-width:none;"></div>
             <span asp-validation-for="ToUsername" class="text-danger"></span>
         </div>
+        @if (Model.RecipientKey is not null)
+        {
+            @await Html.PartialAsync("_PgpKeyBox", Model.RecipientKey)
+        }
+        else
+        {
+            <p class="hint">Their verified PGP key is on their profile (and shows here when you open “Message” from it).</p>
+        }
         <div class="form-group">
-            <label asp-for="Body">Message</label>
-            <textarea asp-for="Body" id="body-input" rows="5" required></textarea>
-            <span asp-validation-for="Body" class="text-danger"></span>
+            <label asp-for="Body"></label>
+            <span asp-validation-for="Body" class="text-danger" style="display:block;margin-bottom:6px;"></span>
+            <textarea asp-for="Body" id="body-input" rows="10" spellcheck="false" style="font-family:var(--mono);font-size:12px;" required
+                      placeholder="-----BEGIN PGP MESSAGE-----&#10;&#10;...&#10;-----END PGP MESSAGE-----"></textarea>
         </div>
         <button type="submit" class="btn btn-primary">Send</button>
     </form>
@@ -42,5 +55,4 @@ else
 
 @section Scripts {
     <script src="~/js/compose.js" asp-append-version="true"></script>
-    <script src="~/js/e2ee-messages.js" asp-append-version="true"></script>
 }

@@ -7,6 +7,7 @@ using MoneroUserForum.Data.Entities;
 using MoneroUserForum.Data.Enums;
 using MoneroUserForum.Data.Identity;
 using MoneroUserForum.Services.Notifications;
+using MoneroUserForum.Services.Pgp;
 using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Services.Storage;
 using MoneroUserForum.Web.Auth;
@@ -100,7 +101,7 @@ public class MessagesController : Controller
                     PartnerBanned = last.PartnerBanned,
                     PartnerIsAdmin = adminIds.Contains(g.Key),
                     PartnerReputation = ReputationCalculator.Compute(last.PartnerCreatedAtUtc, postCounts.GetValueOrDefault(g.Key), now),
-                    LastSnippet = last.HasEnvelope ? "🔒 Encrypted message" : Snippet(last.Body),
+                    LastSnippet = last.HasEnvelope || last.Body.StartsWith(PgpTools.MessageHeader, StringComparison.Ordinal) ? "🔒 PGP encrypted message" : Snippet(last.Body),
                     LastAtUtc = last.CreatedAtUtc,
                     UnreadCount = g.Count(x => x.Incoming && !x.IsReadByRecipient),
                 };
@@ -132,6 +133,7 @@ public class MessagesController : Controller
             // so this partner's unread count is already cleared to zero.
             Conversations = await this.BuildConversationsAsync(me),
             DmBlocked = await this.DmBlockReasonAsync(),
+            PartnerKey = PartnerKeyInfo(partner),
         });
     }
 
@@ -154,20 +156,6 @@ public class MessagesController : Controller
     [HttpGet("encryption")]
     [AllowAnonymous]
     public IActionResult Encryption() => this.View();
-
-    /// <summary>Public keys for a member, so the sender's browser can encrypt to them.
-    /// 404 if the member hasn't set up encryption keys yet.</summary>
-    [HttpGet("pubkey/{name}")]
-    public async Task<IActionResult> PubKey(string name)
-    {
-        var u = await this.users.FindByNameAsync(name.Trim().ToLowerInvariant());
-        if (u is null || u.IsDeleted || string.IsNullOrEmpty(u.EncPublicKey) || string.IsNullOrEmpty(u.SignPublicKey))
-        {
-            return this.NotFound(new { error = "This member has not set up encryption yet." });
-        }
-
-        return this.Json(new { userId = u.Id, encPublicKey = u.EncPublicKey, signPublicKey = u.SignPublicKey });
-    }
 
     private static bool IsFetch(HttpRequest req) =>
         string.Equals(req.Headers["X-Requested-With"], "fetch", StringComparison.OrdinalIgnoreCase);
@@ -203,8 +191,33 @@ public class MessagesController : Controller
     public async Task<IActionResult> New(string? to)
     {
         this.ViewData["DmBlocked"] = await this.DmBlockReasonAsync();
-        return this.View("Compose", new ComposeViewModel { ToUsername = to ?? string.Empty });
+        var model = new ComposeViewModel { ToUsername = to ?? string.Empty };
+        await this.LoadRecipientKeyAsync(model);
+        return this.View("Compose", model);
     }
+
+    /// <summary>Fills the recipient's verified PGP key (or why they can't be messaged) for the compose page.</summary>
+    private async Task LoadRecipientKeyAsync(ComposeViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.ToUsername))
+        {
+            return;
+        }
+
+        var u = await this.users.FindByNameAsync(model.ToUsername.Trim().ToLowerInvariant());
+        if (u is not null && !u.IsDeleted)
+        {
+            model.RecipientKey = PartnerKeyInfo(u);
+        }
+    }
+
+    private static PartnerKeyViewModel PartnerKeyInfo(AppUser u) => new()
+    {
+        Name = u.DisplayName,
+        Verified = u.PgpVerifiedAtUtc is not null && !string.IsNullOrEmpty(u.PgpPublicKey),
+        PublicKey = u.PgpVerifiedAtUtc is not null ? u.PgpPublicKey : null,
+        Fingerprint = u.PgpVerifiedAtUtc is not null ? u.PgpFingerprint : null,
+    };
 
     /// <summary>
     /// Minimum account age before a member may send direct messages. Combined with the
@@ -237,6 +250,12 @@ public class MessagesController : Controller
                    $"You'll be able to send DMs on {eligibleAt:MMMM d, yyyy} (UTC).";
         }
 
+        // Messages are PGP-only, so the sender needs a verified key too (otherwise nobody can reply).
+        if (string.IsNullOrEmpty(u.PgpPublicKey) || u.PgpVerifiedAtUtc is null)
+        {
+            return NeedOwnKeyMessage;
+        }
+
         return null;
     }
 
@@ -262,11 +281,15 @@ public class MessagesController : Controller
         return this.Json(items);
     }
 
+    public const string NeedOwnKeyMessage =
+        "Private messages must be PGP encrypted. Add and verify your PGP public key on your profile before sending messages, so people can reply to you.";
+
     [HttpPost("send")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.CanPost)]
     public async Task<IActionResult> Send(ComposeViewModel model)
     {
+        await this.LoadRecipientKeyAsync(model);
         if (!this.ModelState.IsValid)
         {
             return this.View("Compose", model);
@@ -296,16 +319,12 @@ public class MessagesController : Controller
             return this.View("Compose", model);
         }
 
-        // Preferred path: store ONLY the browser-produced ciphertext envelope — the plaintext never
-        // reaches the server. Fallback path: browsers without WebCrypto/IndexedDB (some private/Tor
-        // windows, or .onion over http) can't encrypt, so they post the plaintext Body and we store
-        // it unencrypted so the message can still be delivered.
-        var hasEnvelope = !string.IsNullOrWhiteSpace(model.Envelope);
-        var plaintext = (model.Body ?? string.Empty).Trim();
-
-        if (!hasEnvelope && plaintext.Length == 0)
+        // PGP only: the body must be one armored PGP message encrypted to the recipient's verified
+        // key. The server never sees plaintext and never stores anything that isn't encrypted.
+        var bodyError = CheckPgpBody(model.Body, partner);
+        if (bodyError is not null)
         {
-            this.ModelState.AddModelError(nameof(model.Body), "Enter a message to send.");
+            this.ModelState.AddModelError(nameof(model.Body), bodyError);
             return this.View("Compose", model);
         }
 
@@ -313,8 +332,8 @@ public class MessagesController : Controller
         {
             SenderId = me,
             RecipientId = partner.Id,
-            Body = hasEnvelope ? string.Empty : plaintext,
-            EncryptedEnvelope = hasEnvelope ? model.Envelope : null,
+            Body = NormalizeNewlines(model.Body!.Trim()),
+            EncryptedEnvelope = null,
             CreatedAtUtc = DateTime.UtcNow,
         };
         this.db.PrivateMessages.Add(pm);
@@ -330,6 +349,39 @@ public class MessagesController : Controller
 
         return this.Redirect(redirect!);
     }
+
+    /// <summary>Null when the body is a PGP message encrypted to the recipient; otherwise the error to show.</summary>
+    public static string? CheckPgpBody(string? body, AppUser recipient)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return "Enter a PGP encrypted message to send.";
+        }
+
+        if (recipient.PgpVerifiedAtUtc is null || string.IsNullOrEmpty(recipient.PgpPublicKey))
+        {
+            return $"{recipient.DisplayName} hasn't added a verified PGP key yet, so they can't receive messages. Messages must be PGP encrypted.";
+        }
+
+        var key = PgpTools.ReadPublicKey(recipient.PgpPublicKey, out _);
+        if (key is null)
+        {
+            return $"{recipient.DisplayName}'s PGP key can no longer receive encrypted messages (it may have expired or been revoked).";
+        }
+
+        return PgpTools.CheckMessage(body, key.KeyIds) switch
+        {
+            PgpMessageCheck.Ok => null,
+            PgpMessageCheck.WrongRecipient =>
+                $"This message is PGP encrypted, but not to {recipient.DisplayName}'s key. Encrypt it to the key shown below (fingerprint {PgpTools.FormatFingerprint(recipient.PgpFingerprint)}).",
+            PgpMessageCheck.NotEncrypted =>
+                $"This PGP message isn't encrypted to a public key. It must be encrypted to {recipient.DisplayName}'s PGP public key (not just signed or password-protected).",
+            _ =>
+                $"Messages must be PGP encrypted. Encrypt your message to {recipient.DisplayName}'s PGP public key and paste the whole block, from -----BEGIN PGP MESSAGE----- to -----END PGP MESSAGE-----, with nothing else around it.",
+        };
+    }
+
+    private static string NormalizeNewlines(string s) => s.Replace("\r\n", "\n").Replace('\r', '\n');
 
     private static string Snippet(string body)
         => body.Length <= 80 ? body : body[..80] + "…";

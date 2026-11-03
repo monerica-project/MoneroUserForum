@@ -24,7 +24,7 @@
     <meta name="description" content="@metaDesc" />
     <link rel="canonical" href="@canonical" />
     <meta name="robots" content="@(privateArea ? "noindex,nofollow" : "index,follow")" />
-    <meta name="theme-color" content="#ff6600" />
+    <meta name="theme-color" content="#07080b" />
 
     <meta property="og:type" content="@ogType" />
     <meta property="og:site_name" content="Monero User Forum" />
@@ -43,25 +43,19 @@
     <link rel="icon" type="image/png" href="https://cdn.monerouserforum.com/muf-mark.png" />
     <link rel="apple-touch-icon" href="https://cdn.monerouserforum.com/muf-mark.png" />
     <link rel="stylesheet" href="~/css/muf.css" asp-append-version="true" />
-    @if (authed)
-    {
-        <meta name="muf-user-id" content="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)" />
-    }
     <script src="~/js/editor.js" asp-append-version="true" defer></script>
     <script src="~/js/yt-embed.js" asp-append-version="true" defer></script>
     <script src="~/js/search-suggest.js" asp-append-version="true" defer></script>
     <script src="~/js/confirm.js" asp-append-version="true" defer></script>
-    <script src="~/js/e2ee.js" asp-append-version="true" defer></script>
-    <script src="~/js/e2ee-auth.js" asp-append-version="true" defer></script>
+    <script src="~/js/local-time.js" asp-append-version="true" defer></script>
 </head>
-<body>
+<body class="@(authed ? "authed" : null)">
     <header class="site-header">
         <nav class="nav">
-            <a class="brand" asp-controller="Home" asp-action="Index">
-                <img class="logo-img" src="https://cdn.monerouserforum.com/muf-mark.png" alt="" width="34" height="34" /> <span class="accent">Monero</span>&nbsp;User&nbsp;Forum
+            <a class="brand" asp-controller="Home" asp-action="Index" aria-label="Monero User Forum home">
+                <img class="logo-img" src="https://cdn.monerouserforum.com/muf-mark.png" alt="" width="34" height="34" /> <span class="brand-text"><span class="accent">Monero</span>&nbsp;User&nbsp;Forum</span>
             </a>
             <div class="nav-links">
-                <a asp-controller="Home" asp-action="Index">Recent</a>
                 <a asp-controller="Thread" asp-action="Categories">Categories</a>
                 <a asp-controller="Chat" asp-action="Index">Chat</a>
             </div>

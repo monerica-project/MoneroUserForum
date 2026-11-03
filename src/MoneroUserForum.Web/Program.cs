@@ -200,7 +200,8 @@ app.Use(async (context, next) =>
     if (!string.IsNullOrEmpty(path)
         && (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method)))
     {
-        var lower = path.ToLowerInvariant();
+        // Exactly one leading slash: "//Evil.com" must not become a protocol-relative redirect off-site.
+        var lower = "/" + path.ToLowerInvariant().TrimStart('/', '\\');
         if (!string.Equals(path, lower, StringComparison.Ordinal))
         {
             context.Response.Redirect(lower + request.QueryString.Value, permanent: true);

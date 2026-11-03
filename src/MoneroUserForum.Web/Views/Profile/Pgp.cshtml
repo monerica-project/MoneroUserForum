@@ -1,0 +1,57 @@
+@model PgpVerifyViewModel
+@using MoneroUserForum.Services.Pgp
+@{ ViewData["Title"] = "Verify your PGP key"; }
+
+<div class="panel" style="max-width:760px;">
+    <h1>Your PGP key</h1>
+
+    @if (!Model.HasKey)
+    {
+        <p>You haven't added a PGP public key yet. Private messages on this forum must be PGP encrypted, so you need
+            a verified key to send or receive them.</p>
+        <a class="btn btn-primary" asp-action="Edit">Add your PGP public key</a>
+    }
+    else if (Model.VerifiedAtUtc is not null)
+    {
+        <p><span class="chip pgp-verified">✓ Verified</span> on @Model.VerifiedAtUtc.Value.ToString("MMMM d, yyyy") (UTC)</p>
+        <p class="muted">Fingerprint: <code class="pgp-fp">@PgpTools.FormatFingerprint(Model.Fingerprint)</code></p>
+        <p>Other members can see your key on your profile and send you encrypted messages.
+            Changing the key on your profile will ask you to verify again.</p>
+        <a class="btn" asp-action="Edit">Edit profile</a>
+        <a class="btn" asp-action="View" asp-route-name="@Model.DisplayName">View profile</a>
+    }
+    else
+    {
+        <p><span class="chip pgp-unverified">Not verified yet</span></p>
+        <p class="muted">Fingerprint: <code class="pgp-fp">@PgpTools.FormatFingerprint(Model.Fingerprint)</code></p>
+        <p>To prove this key is yours, decrypt the message below with your private key (for example
+            <code>gpg --decrypt</code>, Kleopatra or GPG Keychain). It contains a 12-character code. Enter it below.
+            Until then your key is hidden from others and you can't send or receive messages.</p>
+
+        <h2 class="panel-title">1. Decrypt this message</h2>
+        <pre class="pgp-block">@Model.ChallengeArmored</pre>
+        @if (Model.ChallengeExpiresUtc is not null)
+        {
+            <p class="hint">This code expires at @Model.ChallengeExpiresUtc.Value.ToString("HH:mm") UTC.</p>
+        }
+
+        <h2 class="panel-title">2. Enter the code</h2>
+        @if (!string.IsNullOrEmpty(Model.Error))
+        {
+            <div class="text-danger" role="alert" style="margin-bottom:8px;">@Model.Error</div>
+        }
+        <form asp-action="PgpVerify" method="post" class="form-narrow">
+            <div class="form-group">
+                <input name="code" autocomplete="off" spellcheck="false" maxlength="40" placeholder="e.g. 7KQ2M9XHRT4D" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Verify key</button>
+        </form>
+
+        <form asp-action="PgpNewCode" method="post" style="margin-top:14px;">
+            <button type="submit" class="btn btn-sm">Get a new code</button>
+            <a class="btn btn-sm" asp-action="Edit">Change key</a>
+        </form>
+    }
+
+    <p class="hint" style="margin-top:18px;"><a asp-controller="Messages" asp-action="Encryption">How PGP messages work on this forum →</a></p>
+</div>

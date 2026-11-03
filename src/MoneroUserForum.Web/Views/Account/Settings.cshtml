@@ -26,8 +26,6 @@
 
 <div class="panel">
     <h2 class="panel-title">Change password</h2>
-    <p class="hint" style="margin-top:0;">Your encrypted messages are re-secured to the new password automatically.
-        Locked out of past messages after a reset? <a asp-action="RecoverKeys">Restore with your recovery code</a>.</p>
     <form id="change-password-form" asp-action="ChangePassword" method="post" class="form-narrow">
         <div asp-validation-summary="All" class="text-danger"></div>
         <div class="form-group">

@@ -1,42 +1,113 @@
-@{ ViewData["Title"] = "How private messages are encrypted"; }
-<div class="panel" style="max-width:760px;margin:24px auto 0;">
-    <h1>End-to-end encrypted private messages</h1>
-    <p class="muted">Plain language, exact claims — no marketing.</p>
+@{ ViewData["Title"] = "PGP encrypted private messages"; }
+<div class="panel" style="max-width:820px;margin:24px auto 0;">
+    <h1>Private messages are PGP only</h1>
+    <p class="muted">Every private message on this forum must be encrypted with PGP to the recipient's verified public key.
+        The forum refuses anything else. You do the encrypting in a free program on your own device, then paste the result here.</p>
 
-    <h2 class="panel-title">The guarantee</h2>
-    <p>
-        Every private message is encrypted <strong>in your browser</strong> before it is sent, and can only be
-        decrypted in the browser of you and the person you're messaging. Your private keys are generated on your
-        device and are stored on our server only in a form that's <strong>wrapped (encrypted) with a key derived
-        from your password</strong> — which we never see. We cannot decrypt your messages, and
-        <strong>a stolen copy of our database is useless</strong> for reading them, to an attacker or to us.
-    </p>
-
-    <h2 class="panel-title">How it works</h2>
+    <h2 class="panel-title">What this means</h2>
     <ul>
-        <li>At sign-up your browser creates two keypairs (ECDH P-256 for encryption, ECDSA P-256 for signing).</li>
-        <li>Only the <em>public</em> keys go to the server. The <em>private</em> keys are AES-256-GCM-wrapped under a
-            key stretched from your password (PBKDF2, 600k iterations), plus a copy under your one-time recovery code.</li>
-        <li>Each message is encrypted once with a random key; that key is wrapped to both the recipient and you, and
-            the whole thing is signed so the recipient knows it's genuinely from you.</li>
-        <li>Decryption happens on your device and is rendered as plain text — never as HTML.</li>
+        <li>You encrypt on <strong>your own device</strong>, and paste the encrypted block here.</li>
+        <li>The server only ever stores the encrypted block. We can't read it, and neither can anyone who steals our database.</li>
+        <li>Only the recipient's private key can decrypt it. Your private key never touches this site.</li>
+        <li>Plain text, signed-only or password-only messages are rejected.</li>
     </ul>
 
-    <h2 class="panel-title">What this does <em>not</em> protect (the honest limits)</h2>
-    <ul>
-        <li><strong>Trusting the code we serve.</strong> The encryption runs in JavaScript we send you each visit.
-            "We can't read your messages" holds as long as that code is honest. We can't decrypt what's already stored,
-            but a compromised or coerced server could ship altered code to a targeted user going forward. The client
-            source is open for inspection.</li>
-        <li><strong>Metadata.</strong> Encryption hides message <em>contents</em>, not who messaged whom or when.</li>
-        <li><strong>Your password &amp; recovery code.</strong> The strength of the stored, wrapped keys is the strength
-            of your password. If you forget your password <em>and</em> lose your recovery code, your past messages are
-            gone for good — that's the proof no one else can read them either.</li>
-        <li><strong>Forward secrecy.</strong> A database dump alone reveals nothing, but if someone also steals a
-            recipient's unlocked device they could read messages that person already received.</li>
-        <li><strong>No server-side search, previews, or moderation</strong> of message contents — the server can't read them.</li>
-    </ul>
+    <h2 class="panel-title">Which program to use</h2>
+    <p>Pick the one for your device. All are free and open source.</p>
+    <table class="unlocks-table enc-table">
+        <thead>
+            <tr><th>Your device</th><th>Use this</th><th>Where to get it</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Windows</strong></td><td>Kleopatra (comes with Gpg4win)</td><td><a href="https://gpg4win.org" rel="noopener noreferrer">gpg4win.org</a></td></tr>
+            <tr><td><strong>macOS</strong></td><td>GPG Keychain (part of GPG Suite)</td><td><a href="https://gpgtools.org" rel="noopener noreferrer">gpgtools.org</a> (the free parts are all you need)</td></tr>
+            <tr><td><strong>Linux</strong></td><td>Kleopatra</td><td>Your software store, or <code>sudo apt install kleopatra</code></td></tr>
+            <tr><td><strong>Tails</strong></td><td>Kleopatra</td><td>Already installed</td></tr>
+            <tr><td><strong>Android</strong></td><td>OpenKeychain</td><td>F-Droid or Google Play</td></tr>
+            <tr><td><strong>iPhone / iPad</strong></td><td>PGPro</td><td>App Store</td></tr>
+            <tr><td><strong>Any (advanced)</strong></td><td>GnuPG command line (<code>gpg</code>)</td><td><a href="https://gnupg.org" rel="noopener noreferrer">gnupg.org</a>, preinstalled on most Linux</td></tr>
+        </tbody>
+    </table>
+    <p class="hint">Never paste your <strong>private</strong> key into a website, including "online PGP" tools. Only the
+        <strong>public</strong> key ever goes on this forum.</p>
 
-    <p class="hint">Password changes automatically re-secure your keys. After a password <em>reset</em>, use your
-        recovery code on the <a asp-controller="Account" asp-action="RecoverKeys">restore page</a> to regain access.</p>
+    <h2 class="panel-title">The steps (same in every program)</h2>
+    <ol class="enc-steps">
+        <li><strong>Create your key</strong> once, with a strong passphrase.</li>
+        <li><strong>Add it to the forum:</strong> copy your <em>public</em> key and paste it on
+            <a asp-controller="Profile" asp-action="Pgp">your PGP key page</a>. The forum shows you a short encrypted code;
+            decrypt it in your program and type the code back. This proves the key is yours. You need a verified key to send
+            or receive messages.</li>
+        <li><strong>Send a message:</strong> copy the other member's public key from their profile and import it into your
+            program. Write your message, encrypt it to <strong>them and yourself</strong> (so you can read your own sent
+            messages later), and paste the whole result here, from <code>-----BEGIN PGP MESSAGE-----</code> to
+            <code>-----END PGP MESSAGE-----</code>.</li>
+        <li><strong>Read a message:</strong> copy the encrypted block from the conversation into your program and decrypt it.</li>
+    </ol>
+
+    <h2 class="panel-title">Step by step for your program</h2>
+
+    <details class="enc-howto">
+        <summary><strong>Kleopatra</strong> &middot; Windows, Linux, Tails</summary>
+        <ol>
+            <li><strong>Create a key:</strong> File &rarr; New OpenPGP Key Pair. Enter a name (a nickname is fine) and set a passphrase.</li>
+            <li><strong>Copy your public key:</strong> right-click your key &rarr; Export&hellip;, save it, open the file in a text editor and copy everything. Paste it on your forum PGP page.</li>
+            <li><strong>Import someone's key:</strong> copy their key from their profile, open the <strong>Notepad</strong> tab, paste it, then click <strong>Import Notepad</strong>.</li>
+            <li><strong>Encrypt:</strong> in the Notepad tab, write your message. Open the <strong>Recipients</strong> tab, add the other member and keep <strong>Encrypt for me</strong> ticked. Click <strong>Encrypt Notepad</strong>, then copy the result and paste it here.</li>
+            <li><strong>Decrypt:</strong> paste the encrypted block into the Notepad tab and click <strong>Decrypt / Verify Notepad</strong>. This is also how you decrypt the verification code.</li>
+        </ol>
+    </details>
+
+    <details class="enc-howto">
+        <summary><strong>GPG Keychain</strong> &middot; macOS</summary>
+        <ol>
+            <li><strong>Create a key:</strong> open GPG Keychain and click <strong>New</strong>. Enter a name and a passphrase.</li>
+            <li><strong>Copy your public key:</strong> select your key and click <strong>Export</strong>, open the saved file in TextEdit and copy everything. Paste it on your forum PGP page.</li>
+            <li><strong>Import someone's key:</strong> copy their key from their profile, then in GPG Keychain click <strong>Import</strong> (or save it as a <code>.asc</code> file and drag it in).</li>
+            <li><strong>Encrypt:</strong> write your message in TextEdit, select it, then right-click &rarr; <strong>Services</strong> &rarr; <strong>OpenPGP: Encrypt Selection</strong>. Choose the other member and yourself, then copy the result and paste it here.</li>
+            <li><strong>Decrypt:</strong> paste the encrypted block into TextEdit, select it, then right-click &rarr; <strong>Services</strong> &rarr; <strong>OpenPGP: Decrypt Selection</strong>.</li>
+        </ol>
+    </details>
+
+    <details class="enc-howto">
+        <summary><strong>OpenKeychain</strong> &middot; Android</summary>
+        <ol>
+            <li><strong>Create a key:</strong> open OpenKeychain and choose <strong>Create my key</strong>. Enter a name and set a passphrase.</li>
+            <li><strong>Copy your public key:</strong> tap your key, then the share button, and choose <strong>copy to clipboard</strong>. Paste it on your forum PGP page.</li>
+            <li><strong>Import someone's key:</strong> copy their key from their profile, then in OpenKeychain tap <strong>+</strong> &rarr; <strong>Import from clipboard</strong>.</li>
+            <li><strong>Encrypt:</strong> open the menu &rarr; <strong>Encrypt/Decrypt</strong> &rarr; <strong>Encrypt text</strong>. Pick the other member as recipient (your own key is included by default), type the message, encrypt and copy it, then paste it here.</li>
+            <li><strong>Decrypt:</strong> copy the encrypted block, then in OpenKeychain choose <strong>Encrypt/Decrypt</strong> &rarr; <strong>Decrypt from clipboard</strong>.</li>
+        </ol>
+    </details>
+
+    <details class="enc-howto">
+        <summary><strong>PGPro</strong> &middot; iPhone and iPad</summary>
+        <ol>
+            <li><strong>Create a key:</strong> in the <strong>Keychain</strong> tab tap <strong>+</strong> and generate a new key with a passphrase.</li>
+            <li><strong>Copy your public key:</strong> tap your key and copy the public key. Paste it on your forum PGP page.</li>
+            <li><strong>Import someone's key:</strong> copy their key from their profile, then in the Keychain tab tap <strong>+</strong> and add it from the clipboard.</li>
+            <li><strong>Encrypt:</strong> in the <strong>Encryption</strong> tab choose the other member and yourself as recipients, type the message, encrypt and copy it, then paste it here.</li>
+            <li><strong>Decrypt:</strong> in the <strong>Decryption</strong> tab paste the encrypted block and decrypt it with your key.</li>
+        </ol>
+    </details>
+
+    <details class="enc-howto">
+        <summary><strong>Command line (gpg)</strong> &middot; any platform</summary>
+        <p>Create a key and export the public part:</p>
+        <pre class="pgp-block">gpg --full-generate-key
+gpg --armor --export YOUR_FINGERPRINT</pre>
+        <p>Import someone's key, then encrypt to them and yourself:</p>
+        <pre class="pgp-block">gpg --import their-key.asc
+gpg --armor --encrypt -r THEIR_FINGERPRINT -r YOUR_FINGERPRINT message.txt</pre>
+        <p>Decrypt a message (or the verification code):</p>
+        <pre class="pgp-block">gpg --decrypt message.asc</pre>
+    </details>
+
+    <h2 class="panel-title">Limits</h2>
+    <ul>
+        <li>We still know who messaged whom and when (metadata). Only the content is protected.</li>
+        <li>Lose your private key or passphrase and you can't read past messages. We can't recover them. Back up your key.</li>
+        <li>If the conversation matters, compare the other member's key fingerprint with one they shared somewhere else.</li>
+        <li>Messages sent before PGP was required are marked “not encrypted”.</li>
+    </ul>
 </div>

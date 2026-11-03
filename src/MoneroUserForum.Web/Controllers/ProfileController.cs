@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MoneroUserForum.Data;
 using MoneroUserForum.Data.Identity;
+using MoneroUserForum.Services.Pgp;
 using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Services.Storage;
 using MoneroUserForum.Web.Auth;
@@ -103,7 +104,9 @@ public class ProfileController : Controller
             SimpleXAddress = user.SimpleXAddress,
             TelegramHandle = user.TelegramHandle,
             MonericaUrl = user.MonericaUrl,
-            PgpPublicKey = user.PgpPublicKey,
+            PgpPublicKey = user.PgpVerifiedAtUtc is not null || meId == user.Id.ToString() ? user.PgpPublicKey : null,
+            PgpFingerprint = user.PgpFingerprint,
+            PgpVerifiedAtUtc = user.PgpVerifiedAtUtc,
             Signature = user.Signature,
             MoneroDonationAddress = user.MoneroDonationAddress,
             MoneroQrDataUri = QrCodeHelper.MoneroTipDataUri(user.MoneroDonationAddress),
@@ -205,9 +208,22 @@ public class ProfileController : Controller
             this.ModelState.AddModelError(nameof(model.MonericaUrl), "Enter a link on monerica.com (e.g. https://monerica.com/site/your-listing).");
         }
 
+        PgpKeyInfo? pgp = null;
+        if (!string.IsNullOrWhiteSpace(model.PgpPublicKey)
+            && !string.Equals(NormalizeKey(model.PgpPublicKey), NormalizeKey(user.PgpPublicKey), StringComparison.Ordinal))
+        {
+            pgp = PgpTools.ReadPublicKey(model.PgpPublicKey, out var pgpError);
+            if (pgp is null)
+            {
+                this.ModelState.AddModelError(nameof(model.PgpPublicKey), pgpError!);
+            }
+        }
+
         if (!this.ModelState.IsValid)
         {
             model.CurrentAvatarUrl = string.IsNullOrEmpty(user.AvatarPath) ? null : this.images.PublicUrl(user.AvatarPath);
+            model.PgpFingerprint = user.PgpFingerprint;
+            model.PgpVerifiedAtUtc = user.PgpVerifiedAtUtc;
             return this.View(model);
         }
 
@@ -233,11 +249,19 @@ public class ProfileController : Controller
                 return this.RedirectToAction(nameof(this.Edit));
             }
 
+            // Shrink to a small WebP and strip metadata (GPS etc.) before it's published.
+            var processed = ImageProcessor.Process(await FormFileBytes.ReadAllAsync(avatar), ImagePurpose.Avatar);
+            if (!processed.Ok)
+            {
+                this.TempData["Error"] = processed.Error;
+                return this.RedirectToAction(nameof(this.Edit));
+            }
+
             var old = user.AvatarPath;
-            await using var stream = avatar.OpenReadStream();
+            using var stream = new MemoryStream(processed.Bytes!);
             // Foldered per user under profile/ so each member's avatars stay grouped; the
             // filename itself is a GUID (see BunnyImageStorage) so uploads never collide.
-            user.AvatarPath = await this.images.SaveAsync(stream, $"profile/{user.Id}", ext);
+            user.AvatarPath = await this.images.SaveAsync(stream, $"profile/{user.Id}", processed.Extension!);
             if (!string.IsNullOrEmpty(old))
             {
                 await this.images.DeleteAsync(old);
@@ -250,7 +274,16 @@ public class ProfileController : Controller
         user.SimpleXAddress = Trim(model.SimpleXAddress);
         user.TelegramHandle = Trim(model.TelegramHandle);
         user.MonericaUrl = Trim(model.MonericaUrl);
-        user.PgpPublicKey = Trim(model.PgpPublicKey);
+        // A new or changed key must be verified again before others can see it or message you.
+        var newKey = Trim(model.PgpPublicKey);
+        var keyChanged = !string.Equals(NormalizeKey(newKey), NormalizeKey(user.PgpPublicKey), StringComparison.Ordinal);
+        if (keyChanged)
+        {
+            user.PgpPublicKey = newKey;
+            user.PgpFingerprint = pgp?.Fingerprint;
+            user.PgpVerifiedAtUtc = null;
+            ClearChallenge(user);
+        }
         user.MoneroDonationAddress = Trim(model.MoneroDonationAddress);
         user.Link1Label = Trim(model.Link1Label);
         user.Link1Url = Trim(model.Link1Url);
@@ -261,9 +294,141 @@ public class ProfileController : Controller
         user.UpdatedAtUtc = DateTime.UtcNow;
 
         await this.users.UpdateAsync(user);
+        if (keyChanged && newKey is not null)
+        {
+            this.TempData["Message"] = "Profile updated. Now verify your PGP key so others can see it and message you.";
+            return this.RedirectToAction(nameof(this.Pgp));
+        }
+
         this.TempData["Message"] = "Profile updated.";
         return this.RedirectToAction(nameof(this.View), new { name = user.DisplayName });
     }
+
+    private static readonly TimeSpan ChallengeLifetime = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// PGP key verification: we encrypt a one-time code to the member's key; they decrypt it with
+    /// their private key and type it back, proving they hold the key. The code is kept only as a hash.
+    /// </summary>
+    [HttpGet("pgp")]
+    [Authorize]
+    public async Task<IActionResult> Pgp()
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (!string.IsNullOrEmpty(user.PgpPublicKey) && user.PgpVerifiedAtUtc is null
+            && (user.PgpChallengeExpiresUtc is null || user.PgpChallengeExpiresUtc < DateTime.UtcNow || string.IsNullOrEmpty(user.PgpChallengeArmored)))
+        {
+            if (!this.NewChallenge(user))
+            {
+                this.TempData["Error"] = "Your saved PGP key can no longer receive encrypted messages. Paste an updated key.";
+                return this.RedirectToAction(nameof(this.Edit));
+            }
+
+            await this.users.UpdateAsync(user);
+        }
+
+        return this.View(this.ToPgpModel(user));
+    }
+
+    [HttpPost("pgp/new-code")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public async Task<IActionResult> PgpNewCode()
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (!string.IsNullOrEmpty(user.PgpPublicKey) && user.PgpVerifiedAtUtc is null && this.NewChallenge(user))
+        {
+            await this.users.UpdateAsync(user);
+        }
+
+        return this.RedirectToAction(nameof(this.Pgp));
+    }
+
+    [HttpPost("pgp/verify")]
+    [ValidateAntiForgeryToken]
+    [Authorize]
+    public async Task<IActionResult> PgpVerify(string? code)
+    {
+        var user = await this.users.GetUserAsync(this.User);
+        if (user is null)
+        {
+            return this.Challenge();
+        }
+
+        if (string.IsNullOrEmpty(user.PgpPublicKey) || user.PgpVerifiedAtUtc is not null)
+        {
+            return this.RedirectToAction(nameof(this.Pgp));
+        }
+
+        if (user.PgpChallengeExpiresUtc is null || user.PgpChallengeExpiresUtc < DateTime.UtcNow)
+        {
+            this.TempData["Error"] = "That code expired. Here's a new one.";
+            return this.RedirectToAction(nameof(this.Pgp));
+        }
+
+        if (!PgpTools.CodeMatches(code, user.PgpChallengeHash))
+        {
+            var model = this.ToPgpModel(user);
+            model.Error = "That code doesn't match. Decrypt the message above with your private key and enter the code inside it.";
+            return this.View("Pgp", model);
+        }
+
+        user.PgpVerifiedAtUtc = DateTime.UtcNow;
+        ClearChallenge(user);
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await this.users.UpdateAsync(user);
+        this.TempData["Message"] = "PGP key verified. Other members can now see it and send you encrypted messages.";
+        return this.RedirectToAction(nameof(this.View), new { name = user.DisplayName });
+    }
+
+    private bool NewChallenge(AppUser user)
+    {
+        var code = PgpTools.NewChallengeCode();
+        try
+        {
+            user.PgpFingerprint ??= PgpTools.ReadPublicKey(user.PgpPublicKey, out _)?.Fingerprint;
+            user.PgpChallengeArmored = PgpTools.EncryptTo(user.PgpPublicKey!,
+                $"Monero User Forum PGP key verification for {user.DisplayName}.\n\nYour code: {code}\n");
+        }
+        catch
+        {
+            return false;
+        }
+
+        user.PgpChallengeHash = PgpTools.HashCode(code);
+        user.PgpChallengeExpiresUtc = DateTime.UtcNow.Add(ChallengeLifetime);
+        return true;
+    }
+
+    private static void ClearChallenge(AppUser user)
+    {
+        user.PgpChallengeHash = null;
+        user.PgpChallengeArmored = null;
+        user.PgpChallengeExpiresUtc = null;
+    }
+
+    private PgpVerifyViewModel ToPgpModel(AppUser user) => new()
+    {
+        DisplayName = user.DisplayName,
+        HasKey = !string.IsNullOrEmpty(user.PgpPublicKey),
+        Fingerprint = user.PgpFingerprint,
+        VerifiedAtUtc = user.PgpVerifiedAtUtc,
+        ChallengeArmored = user.PgpChallengeArmored,
+        ChallengeExpiresUtc = user.PgpChallengeExpiresUtc,
+    };
+
+    private static string NormalizeKey(string? key) =>
+        string.Join("\n", (key ?? string.Empty).Replace("\r", string.Empty).Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0));
 
     private static string? Trim(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
@@ -276,6 +441,8 @@ public class ProfileController : Controller
         TelegramHandle = user.TelegramHandle,
         MonericaUrl = user.MonericaUrl,
         PgpPublicKey = user.PgpPublicKey,
+        PgpFingerprint = user.PgpFingerprint,
+        PgpVerifiedAtUtc = user.PgpVerifiedAtUtc,
         MoneroDonationAddress = user.MoneroDonationAddress,
         Link1Label = user.Link1Label,
         Link1Url = user.Link1Url,

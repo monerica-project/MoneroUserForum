@@ -129,7 +129,7 @@
                         <text>↳ in reply to <a href="#post-@rid">@(p.ReplyToAuthorName ?? "a post")</a> · </text>
                     }
                     @TimeAgo(p.CreatedAtUtc)
-                    <time datetime="@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" class="post-utc" style="font-size:11px;opacity:.65;margin-left:6px;" title="Exact time this post was made (UTC)">@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")</time>
+                    <time datetime="@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'")" class="post-utc local-time" style="font-size:11px;opacity:.65;margin-left:6px;" title="Exact time this post was made (UTC)">@p.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm'Z'")</time>
                     @if (p.IsPending)
                     {
                         <span class="pill" style="background:var(--mono-orange,#f26822);color:#111;border-radius:10px;padding:1px 8px;margin-left:6px;font-size:12px;" title="Hidden from other members until the account is approved">⏳ pending approval</span>
@@ -317,7 +317,7 @@
             @if (Model.CanPostImages)
             {
                 <div class="form-group">
-                    <label class="dim" style="font-size:13px;">📷 Attach images (up to 4 · JPG/PNG/WEBP/GIF · 5 MB each)</label>
+                    <label class="dim" style="font-size:13px;">📷 Attach images (up to 4 · JPG/PNG/WEBP/GIF · 5 MB each, animated 500 KB · location data removed)</label>
                     <input type="file" name="images" accept="image/png,image/jpeg,image/webp,image/gif" multiple />
                 </div>
             }

@@ -1116,10 +1116,18 @@ public class ThreadController : Controller
                 continue;
             }
 
-            await using var stream = file.OpenReadStream();
+            // Shrink to WebP and strip metadata (GPS location etc.) before it's published.
+            var processed = ImageProcessor.Process(await FormFileBytes.ReadAllAsync(file, ct), ImagePurpose.PostImage);
+            if (!processed.Ok)
+            {
+                this.TempData["Error"] = $"{Path.GetFileName(file.FileName)} wasn't attached: {processed.Error}";
+                continue;
+            }
+
+            using var stream = new MemoryStream(processed.Bytes!);
             // Foldered per thread (threads/{threadId}) so a thread's images stay together;
             // the filename is a GUID (see BunnyImageStorage) so uploads never collide.
-            var key = await this.images.SaveAsync(stream, $"threads/{post.ThreadId}", ext, ct);
+            var key = await this.images.SaveAsync(stream, $"threads/{post.ThreadId}", processed.Extension!, ct);
             this.db.PostImages.Add(new PostImage
             {
                 PostId = post.Id,

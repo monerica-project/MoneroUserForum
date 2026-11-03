@@ -65,6 +65,8 @@ public class ProfileViewModel
     public string? TelegramHandle { get; set; }
     public string? MonericaUrl { get; set; }
     public string? PgpPublicKey { get; set; }
+    public string? PgpFingerprint { get; set; }
+    public DateTime? PgpVerifiedAtUtc { get; set; }
     public string? Signature { get; set; }
     public string? MoneroDonationAddress { get; set; }
 
@@ -108,9 +110,13 @@ public class ProfileEditViewModel
     [Display(Name = "Your monerica.com link")]
     public string? MonericaUrl { get; set; }
 
-    [StringLength(8000)]
+    [StringLength(20000)]
     [Display(Name = "PGP public key")]
     public string? PgpPublicKey { get; set; }
+
+    // Read-only status shown next to the key box.
+    public string? PgpFingerprint { get; set; }
+    public DateTime? PgpVerifiedAtUtc { get; set; }
 
     [StringLength(255)]
     [Display(Name = "Monero donation address")]
@@ -145,4 +151,15 @@ public class ProfileEditViewModel
     public string? Link3Url { get; set; }
 
     public string? CurrentAvatarUrl { get; set; }
+}
+
+public class PgpVerifyViewModel
+{
+    public string DisplayName { get; set; } = string.Empty;
+    public bool HasKey { get; set; }
+    public string? Fingerprint { get; set; }
+    public DateTime? VerifiedAtUtc { get; set; }
+    public string? ChallengeArmored { get; set; }
+    public DateTime? ChallengeExpiresUtc { get; set; }
+    public string? Error { get; set; }
 }

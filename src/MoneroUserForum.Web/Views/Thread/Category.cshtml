@@ -14,7 +14,7 @@
     </div>
     <div class="sort-bar">
         <span class="muted">Sort:</span>
-        <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="recent" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Recent</a>
+        <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" class="sort-link @(Model.Sort == "recent" ? "active" : null)">Most recent</a>
         <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="views" class="sort-link @(Model.Sort == "views" ? "active" : null)">Most viewed</a>
         <a asp-controller="Thread" asp-action="Category" asp-route-category="@Model.Category" asp-route-sort="replies" class="sort-link @(Model.Sort == "replies" ? "active" : null)">Most replies</a>
     </div>

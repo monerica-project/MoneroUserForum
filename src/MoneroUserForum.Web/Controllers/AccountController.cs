@@ -400,11 +400,10 @@ public class AccountController : Controller
         return this.Json(new { ok = true });
     }
 
-    /// <summary>Page to restore access to encrypted messages using the one-time recovery code
-    /// (after a password reset orphaned the password-wrapped keys). All crypto is client-side.</summary>
+    /// <summary>Retired: the old browser-encryption recovery page. Private messages are PGP now.</summary>
     [HttpGet("recover-keys")]
     [Authorize]
-    public IActionResult RecoverKeys() => this.View();
+    public IActionResult RecoverKeys() => this.RedirectToAction(nameof(this.Settings));
 
     [HttpPost("change-username")]
     [ValidateAntiForgeryToken]

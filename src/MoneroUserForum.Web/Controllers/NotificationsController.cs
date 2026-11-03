@@ -73,7 +73,13 @@ public class NotificationsController : Controller
 
         if (n.Type == NotificationType.PrivateMessage)
         {
-            return this.Redirect("/messages");
+            // Open the conversation with the sender, not just the inbox.
+            var sender = n.ActorUserId is int aid
+                ? await this.db.Users.Where(u => u.Id == aid).Select(u => u.UserName).FirstOrDefaultAsync()
+                : null;
+            return this.Redirect(string.IsNullOrEmpty(sender)
+                ? "/messages"
+                : $"/messages/with/{Uri.EscapeDataString(sender)}");
         }
 
         if (n.PostId is int postId && n.ThreadId is int threadId)

@@ -13,13 +13,18 @@ else
                 <div class="dm-time">@TimeAgo(m.CreatedAtUtc)</div>
                 @if (!string.IsNullOrEmpty(m.Envelope))
                 {
-                    @* Ciphertext only. e2ee-messages.js decrypts in-browser and fills textContent. *@
-                    <div class="dm-text dm-enc" data-envelope="@m.Envelope">🔒 decrypting…</div>
+                    <div class="dm-text muted">🔒 Message from the old browser encryption system (no longer supported).</div>
+                }
+                else if (m.Body.StartsWith(MoneroUserForum.Services.Pgp.PgpTools.MessageHeader, StringComparison.Ordinal))
+                {
+                    @* Ciphertext only; the reader decrypts it with their own PGP software. *@
+                    <pre class="dm-text dm-pgp">@m.Body</pre>
+                    <div class="dm-time" style="opacity:.7;">🔒 PGP encrypted — decrypt with your private key</div>
                 }
                 else
                 {
                     <div class="dm-text">@m.Body</div>
-                    <div class="dm-time" style="opacity:.7;" title="This message was sent from a browser that could not encrypt, so it is stored unencrypted.">🔓 not encrypted</div>
+                    <div class="dm-time" style="opacity:.7;" title="Sent before PGP encryption was required.">🔓 not encrypted (sent before PGP was required)</div>
                     @* Warn (never block) when a RECEIVED message contains a link. *@
                     @if (!m.FromMe && LinkHeuristics.HasLink(m.Body))
                     {

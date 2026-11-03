@@ -43,7 +43,7 @@
             @if (Model.NewestMemberJoinedUtc is DateTime nj)
             {
                 <span class="muted">joined @TimeAgo(nj)</span>
-                <time datetime="@IsoFull(nj)" style="font-size:11px;opacity:.65;" title="Joined (UTC)">@Iso(nj)</time>
+                <time class="local-time" datetime="@IsoFull(nj)" style="font-size:11px;opacity:.65;" title="Joined (UTC)">@Iso(nj)</time>
             }
         </div>
     }

@@ -21,14 +21,17 @@
     {
         foreach (var n in Model)
         {
-            <div class="thread-row" style="align-items:center;@(n.IsRead ? "" : "background:rgba(255,102,0,.06);")">
+            <div class="thread-row notif-row @(n.IsRead ? "notif-read" : "notif-unread")" style="align-items:center;">
                 <div style="flex:1 1 auto;min-width:0;">
-                    <a asp-action="Open" asp-route-id="@n.Id">
-                        <strong>@(n.ActorName ?? "Someone")</strong> @Describe(n.Type)
+                    <a asp-action="Open" asp-route-id="@n.Id" class="notif-text">
+                        @if (!n.IsRead) { <span class="notif-new">New</span> }<strong>@(n.ActorName ?? "Someone")</strong> @Describe(n.Type)
                         @if (!string.IsNullOrEmpty(n.ThreadTitle)) { <text>— @n.ThreadTitle</text> }
                     </a>
                     <div class="thread-meta">@TimeAgo(n.CreatedAtUtc)</div>
                 </div>
+                <a asp-action="Open" asp-route-id="@n.Id" class="btn btn-sm @(n.IsRead ? "" : "btn-primary")" style="white-space:nowrap;">
+                    @(n.Type == MoneroUserForum.Data.Enums.NotificationType.PrivateMessage ? "View message" : "View post") &rarr;
+                </a>
                 @if (n.Type == MoneroUserForum.Data.Enums.NotificationType.ThreadActivity && n.ThreadId is int tid)
                 {
                     <form asp-action="Unsubscribe" asp-route-threadId="@tid" method="post">

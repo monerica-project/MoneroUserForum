@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using System.Globalization;
+using System.Net;
 using System.Reflection;
+using Microsoft.AspNetCore.Html;
 
 namespace MoneroUserForum.Web.Support;
 
@@ -30,7 +33,22 @@ public static class ForumDisplay
             : null;
     }
 
-    public static string TimeAgo(DateTime utc)
+    /// <summary>
+    /// A relative time ("3h ago") wrapped in a &lt;time&gt; tag that carries the exact UTC instant.
+    /// Without JavaScript the server's text is shown; with it, wwwroot/js/local-time.js recomputes it
+    /// from the reader's own clock and shows their local date/time on hover.
+    /// </summary>
+    public static IHtmlContent TimeAgo(DateTime utc) =>
+        new HtmlString(
+            $"<time class=\"ago\" datetime=\"{IsoUtc(utc)}\" title=\"{WebUtility.HtmlEncode(utc.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))} UTC\">"
+            + $"{WebUtility.HtmlEncode(TimeAgoText(utc))}</time>");
+
+    /// <summary>An exact time stamp in UTC (yyyy-MM-ddTHH:mm:ssZ), for &lt;time datetime&gt;.</summary>
+    public static string IsoUtc(DateTime utc) =>
+        DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss'Z'", CultureInfo.InvariantCulture);
+
+    /// <summary>Plain-text relative time, computed on the server in UTC.</summary>
+    public static string TimeAgoText(DateTime utc)
     {
         var span = DateTime.UtcNow - utc;
         if (span.TotalSeconds < 60)

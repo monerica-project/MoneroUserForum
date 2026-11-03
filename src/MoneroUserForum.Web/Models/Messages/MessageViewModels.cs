@@ -20,10 +20,10 @@ public class ConversationSummary
 
 public class MessageItem
 {
-    /// <summary>Legacy plaintext body (old rows only; null/empty for encrypted messages).</summary>
+    /// <summary>The armored PGP message (or, for old rows sent before PGP was required, plain text).</summary>
     public string Body { get; set; } = string.Empty;
 
-    /// <summary>The end-to-end-encrypted envelope (JSON) — decrypted in the browser. Null for legacy rows.</summary>
+    /// <summary>Old browser-encrypted envelope (retired system). Null for all PGP messages.</summary>
     public string? Envelope { get; set; }
 
     public bool FromMe { get; set; }
@@ -40,8 +40,19 @@ public class ConversationViewModel
     /// <summary>Every thread the viewer is in — rendered as a navigation rail.</summary>
     public IReadOnlyList<ConversationSummary> Conversations { get; set; } = Array.Empty<ConversationSummary>();
 
-    /// <summary>Non-null when the current user may not send DMs (not approved, or too new); the reason to show.</summary>
+    /// <summary>Non-null when the current user may not send DMs (not approved, too new, or no verified PGP key); the reason to show.</summary>
     public string? DmBlocked { get; set; }
+
+    public PartnerKeyViewModel? PartnerKey { get; set; }
+}
+
+/// <summary>The other member's verified PGP key, shown so you can encrypt to it.</summary>
+public class PartnerKeyViewModel
+{
+    public string Name { get; set; } = string.Empty;
+    public bool Verified { get; set; }
+    public string? PublicKey { get; set; }
+    public string? Fingerprint { get; set; }
 }
 
 public class ComposeViewModel
@@ -50,20 +61,13 @@ public class ComposeViewModel
     [Display(Name = "To (username)")]
     public string ToUsername { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Plaintext message. On browsers that support end-to-end encryption this is cleared before
-    /// submit and never posted (the ciphertext goes in <see cref="Envelope"/> instead). On browsers
-    /// WITHOUT WebCrypto/IndexedDB (e.g. some private/Tor windows, or .onion over http) it is posted
-    /// as-is so the message can still be delivered — stored server-side, NOT end-to-end encrypted.
-    /// </summary>
-    [StringLength(20000)]
+    /// <summary>The armored PGP message (-----BEGIN PGP MESSAGE-----), encrypted to the recipient's verified key.
+    /// Anything else is rejected — the forum only stores PGP encrypted private messages.</summary>
+    [StringLength(200000)]
+    [Display(Name = "PGP encrypted message")]
     public string? Body { get; set; }
 
-    /// <summary>
-    /// The end-to-end-encrypted envelope produced by e2ee.js, when the browser can encrypt. This is
-    /// what the server stores in that case — it never sees the plaintext. Optional: when it is absent
-    /// the server falls back to storing <see cref="Body"/> as an unencrypted message.
-    /// </summary>
-    [StringLength(200000)]
-    public string Envelope { get; set; } = string.Empty;
+    /// <summary>Recipient's key info for display (not posted).</summary>
+    [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+    public PartnerKeyViewModel? RecipientKey { get; set; }
 }

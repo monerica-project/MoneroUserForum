@@ -1,0 +1,17 @@
+@model MoneroUserForum.Web.Models.Messages.PartnerKeyViewModel
+@using MoneroUserForum.Services.Pgp
+@* The recipient's verified PGP key, so the sender can encrypt to it. *@
+@if (Model.Verified)
+{
+    <details class="dm-keybox" style="margin-bottom:10px;">
+        <summary><span class="chip pgp-verified">✓ Verified</span> @Model.Name's PGP key — <code class="pgp-fp">@PgpTools.FormatFingerprint(Model.Fingerprint)</code></summary>
+        <pre class="pgp-block" style="margin-top:8px;">@Model.PublicKey</pre>
+        <div class="hint">Encrypt your message to this key (tip: also add your own key as a recipient so you can read what you sent), then paste the whole <code>-----BEGIN PGP MESSAGE-----</code> block. <a asp-controller="Messages" asp-action="Encryption">How?</a></div>
+    </details>
+}
+else
+{
+    <div class="alert alert-error" role="alert" style="margin-bottom:10px;">
+        @Model.Name hasn't added a verified PGP key yet, so they can't receive messages. Messages on this forum must be PGP encrypted.
+    </div>
+}

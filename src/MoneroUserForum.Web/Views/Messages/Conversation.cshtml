@@ -23,7 +23,6 @@
             <a class="btn btn-sm" asp-controller="Profile" asp-action="View" asp-route-name="@Model.PartnerName">View Profile</a>
         </div>
 
-        <div id="dm-status" role="alert" style="display:none;"></div>
         <div class="panel">
             <div id="dm-log" class="chat-log" data-partner="@Model.PartnerName">
                 @await Html.PartialAsync("_DmList", Model.Messages)
@@ -38,21 +37,33 @@
             else if (Model.DmBlocked is not null)
             {
                 <p class="muted">@Model.DmBlocked</p>
+                @if (Model.DmBlocked == MoneroUserForum.Web.Controllers.MessagesController.NeedOwnKeyMessage)
+                {
+                    <a class="btn btn-sm btn-primary" asp-controller="Profile" asp-action="Pgp">Add or verify your PGP key</a>
+                }
             }
             else
             {
-                <form asp-action="Send" method="post">
-                    <input type="hidden" name="ToUsername" value="@Model.PartnerName" />
-                    <div class="form-group">
-                        <textarea name="Body" rows="3" required placeholder="Write a message…"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Send</button>
-                </form>
+                @if (Model.PartnerKey is not null)
+                {
+                    @await Html.PartialAsync("_PgpKeyBox", Model.PartnerKey)
+                }
+                @if (Model.PartnerKey?.Verified ?? false)
+                {
+                    <form asp-action="Send" method="post">
+                        <input type="hidden" name="ToUsername" value="@Model.PartnerName" />
+                        <div class="form-group">
+                            <textarea name="Body" rows="6" required spellcheck="false" style="font-family:var(--mono);font-size:12px;"
+                                      placeholder="Paste your PGP encrypted message: -----BEGIN PGP MESSAGE----- … -----END PGP MESSAGE-----"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </form>
+                }
             }
         </div>
     </section>
 </div>
 
 @section Scripts {
-    <script src="~/js/e2ee-messages.js" asp-append-version="true"></script>
+    <script src="~/js/dm.js" asp-append-version="true"></script>
 }
