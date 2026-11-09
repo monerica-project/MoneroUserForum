@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
     public DbSet<Report> Reports => this.Set<Report>();
     public DbSet<PostThank> PostThanks => this.Set<PostThank>();
     public DbSet<ContactMessage> ContactMessages => this.Set<ContactMessage>();
+    public DbSet<PostModeration> PostModerations => this.Set<PostModeration>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -147,6 +148,20 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
             e.HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PostAuthor).WithMany().HasForeignKey(x => x.PostAuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<PostModeration>(e =>
+        {
+            e.HasIndex(x => x.PostId).IsUnique();
+            e.HasIndex(x => x.State);
+            e.Property(x => x.BodyHash).HasMaxLength(64);
+            e.Property(x => x.Severity).HasMaxLength(10);
+            e.Property(x => x.Categories).HasMaxLength(300);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.Error).HasMaxLength(1000);
+            e.Property(x => x.AdminActionBy).HasMaxLength(64);
+            e.HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

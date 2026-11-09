@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MoneroUserForum.Data;
+using MoneroUserForum.Data.Entities;
 using MoneroUserForum.Data.Enums;
 using MoneroUserForum.Data.Identity;
 using MoneroUserForum.Services.Reputation;
@@ -36,8 +37,110 @@ public class AdminController : Controller
             PostCount = await this.db.Posts.CountAsync(),
             ReportsPending = await this.db.Reports.CountAsync(r => r.Status == ReportStatus.Pending),
             ContactUnread = await this.db.ContactMessages.CountAsync(m => !m.IsHandled),
+            ModerationFlagged = await this.db.PostModerations.CountAsync(m => m.State == PostModerationState.Flagged && !m.Post!.IsCensored),
+            ModerationEnabled = MoneroUserForum.Web.Moderation.PostModerationScanner.IsConfigured(this.HttpContext.RequestServices.GetRequiredService<IConfiguration>()),
         };
         return this.View(vm);
+    }
+
+    // ---- AI safety check: posts and replies that may need removing ----
+    [HttpGet("moderation")]
+    public async Task<IActionResult> Moderation()
+    {
+        static string Excerpt(string? body) =>
+            body == null ? string.Empty : body.Length <= 600 ? body : body[..600] + "…";
+
+        var rows = await this.db.PostModerations.AsNoTracking()
+            .Where(m => m.State != PostModerationState.Clean && m.State != PostModerationState.Error)
+            .OrderByDescending(m => m.CheckedAtUtc)
+            .Select(m => new ModerationRaw
+            {
+                PostId = m.PostId,
+                State = m.State,
+                Severity = m.Severity,
+                Categories = m.Categories,
+                Reason = m.Reason,
+                CheckedAtUtc = m.CheckedAtUtc,
+                AdminActionAtUtc = m.AdminActionAtUtc,
+                AdminActionBy = m.AdminActionBy,
+                Body = m.Post!.Body,
+                IsOpeningPost = m.Post.IsOpeningPost,
+                IsCensored = m.Post.IsCensored,
+                CreatedAtUtc = m.Post.CreatedAtUtc,
+                AuthorId = m.Post.AuthorId,
+                AuthorName = m.Post.Author!.DisplayName ?? m.Post.Author.UserName ?? "?",
+                Title = m.Post.Thread!.Title,
+                Slug = m.Post.Thread.Slug,
+            })
+            .Take(300)
+            .ToListAsync();
+
+        AdminModerationRow Row(ModerationRaw r, PostModerationState state) => new()
+        {
+            PostId = r.PostId, ThreadTitle = r.Title, ThreadSlug = r.Slug, IsOpeningPost = r.IsOpeningPost,
+            AuthorName = r.AuthorName, AuthorId = r.AuthorId, Excerpt = Excerpt(r.Body), PostedAtUtc = r.CreatedAtUtc,
+            Severity = r.Severity, Categories = r.Categories, Reason = r.Reason, State = state,
+            CheckedAtUtc = r.CheckedAtUtc, AdminActionAtUtc = r.AdminActionAtUtc, AdminActionBy = r.AdminActionBy,
+        };
+
+        int Rank(string sev) => sev switch { "high" => 0, "medium" => 1, "low" => 2, _ => 3 };
+        var today = DateTime.UtcNow.Date;
+        var vm = new AdminModerationViewModel
+        {
+            // Flagged and not yet acted on (a post censored elsewhere counts as handled).
+            Flagged = rows.Where(r => r.State == PostModerationState.Flagged && !r.IsCensored)
+                .OrderBy(r => Rank(r.Severity)).ThenByDescending(r => r.PostId)
+                .Select(r => Row(r, PostModerationState.Flagged)).ToList(),
+            RecentlyHandled = rows.Where(r => r.State != PostModerationState.Flagged || r.IsCensored)
+                .OrderByDescending(r => r.AdminActionAtUtc ?? r.CheckedAtUtc).Take(30)
+                .Select(r => Row(r, r.IsCensored ? PostModerationState.Removed : r.State)).ToList(),
+            TotalPosts = await this.db.Posts.CountAsync(p => !p.IsDeleted && !p.IsCensored),
+            Checked = await this.db.PostModerations.CountAsync(m => m.State != PostModerationState.Error),
+            Clean = await this.db.PostModerations.CountAsync(m => m.State == PostModerationState.Clean),
+            Errors = await this.db.PostModerations.CountAsync(m => m.State == PostModerationState.Error),
+            CheckedToday = await this.db.PostModerations.CountAsync(m => m.CheckedAtUtc >= today && m.Model != null),
+            Enabled = MoneroUserForum.Web.Moderation.PostModerationScanner.IsConfigured(this.HttpContext.RequestServices.GetRequiredService<IConfiguration>()),
+        };
+        return this.View(vm);
+    }
+
+    private sealed class ModerationRaw
+    {
+        public int PostId { get; init; }
+        public PostModerationState State { get; init; }
+        public string Severity { get; init; } = "none";
+        public string? Categories { get; init; }
+        public string? Reason { get; init; }
+        public DateTime CheckedAtUtc { get; init; }
+        public DateTime? AdminActionAtUtc { get; init; }
+        public string? AdminActionBy { get; init; }
+        public string? Body { get; init; }
+        public bool IsOpeningPost { get; init; }
+        public bool IsCensored { get; init; }
+        public DateTime CreatedAtUtc { get; init; }
+        public int AuthorId { get; init; }
+        public string AuthorName { get; init; } = string.Empty;
+        public string Title { get; init; } = string.Empty;
+        public string Slug { get; init; } = string.Empty;
+    }
+
+    /// <summary>Admin looked at a flagged post and is keeping it.</summary>
+    [HttpPost("moderation/{postId:int}/keep")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ModerationKeep(int postId)
+    {
+        var row = await this.db.PostModerations.FirstOrDefaultAsync(m => m.PostId == postId);
+        if (row == null)
+        {
+            return this.NotFound();
+        }
+
+        row.State = PostModerationState.Dismissed;
+        row.AdminActionAtUtc = DateTime.UtcNow;
+        row.AdminActionBy = this.User.Identity?.Name;
+        await this.db.SaveChangesAsync();
+        this.TempData["Message"] = "Kept. It won't be flagged again unless it's edited.";
+        return this.RedirectToAction(nameof(this.Moderation));
     }
 
     // ---- Analytics: posts / replies / views over time ----

@@ -19,6 +19,11 @@
         <div style="font-size:30px;font-weight:800;color:@(Model.ReportsPending > 0 ? "#ff8a8a" : "inherit");">@Model.ReportsPending</div>
         <div class="muted">Reported posts</div>
     </a>
+    <a class="panel" style="margin:0;text-align:center;@(Model.ModerationFlagged > 0 ? "border:2px solid #ffa94d;" : "")" asp-action="Moderation">
+        <div style="font-size:30px;font-weight:800;color:@(Model.ModerationFlagged > 0 ? "#ffa94d" : "inherit");">@Model.ModerationFlagged</div>
+        <div class="muted">Flagged by safety check</div>
+        @if (!Model.ModerationEnabled) { <div class="muted" style="font-size:12px;margin-top:4px;">checker off</div> }
+    </a>
     <a class="panel" style="margin:0;text-align:center;" asp-action="Messages">
         <div style="font-size:30px;font-weight:800;color:@(Model.ContactUnread > 0 ? "var(--mono-orange)" : "inherit");">@Model.ContactUnread</div>
         <div class="muted">Contact inbox</div>

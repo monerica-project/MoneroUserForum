@@ -119,6 +119,11 @@ builder.Services.AddHttpClient("moneroprice", c =>
 builder.Services.AddSingleton<MoneroUserForum.Web.Pricing.MoneroPriceService>();
 builder.Services.AddHostedService<MoneroUserForum.Web.Pricing.MoneroPriceRefresher>();
 
+// AI safety check of public posts (flags only; an admin decides on /admin/moderation). Runs only
+// when Anthropic__ApiKey is set in the environment (root-only systemd EnvironmentFile).
+builder.Services.AddHttpClient("anthropic");
+builder.Services.AddHostedService<MoneroUserForum.Web.Moderation.PostModerationScanner>();
+
 // When Bunny isn't configured, images fall back to on-disk storage: point it at
 // wwwroot/uploads (served as /uploads) so avatars actually save + serve.
 builder.Services.PostConfigure<MoneroUserForum.Services.Storage.BunnyStorageOptions>(o =>

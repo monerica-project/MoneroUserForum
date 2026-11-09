@@ -855,8 +855,21 @@ public class ThreadController : Controller
     [HttpPost("post/{id:int}/censor")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = Policies.AdminOnly)]
-    public async Task<IActionResult> CensorPost(int id)
+    public async Task<IActionResult> CensorPost(int id, string? returnTo = null)
     {
+        // From the admin moderation list: record the decision and go back to the list.
+        var backToModeration = returnTo == "moderation";
+        if (backToModeration)
+        {
+            var row = await this.db.PostModerations.FirstOrDefaultAsync(m => m.PostId == id);
+            if (row != null)
+            {
+                row.State = PostModerationState.Removed;
+                row.AdminActionAtUtc = DateTime.UtcNow;
+                row.AdminActionBy = this.User.Identity?.Name;
+            }
+        }
+
         var post = await this.db.Posts.Include(p => p.Thread).FirstOrDefaultAsync(p => p.Id == id);
         if (post?.Thread is null)
         {
@@ -871,7 +884,7 @@ public class ThreadController : Controller
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsCensored, true));
             await this.db.SaveChangesAsync();
             this.TempData["Message"] = "Thread censored — hidden from members to keep the community safe.";
-            return this.Redirect($"/thread/{post.Thread.Slug}");
+            return this.Redirect(backToModeration ? "/admin/moderation" : $"/thread/{post.Thread.Slug}");
         }
 
         var ids = await this.CollectReplySubtreeAsync(post.ThreadId, id);
@@ -882,7 +895,8 @@ public class ThreadController : Controller
         this.TempData["Message"] = replies > 0
             ? $"Post and {replies} repl{(replies == 1 ? "y" : "ies")} beneath it censored."
             : "Post censored.";
-        return this.Redirect($"/thread/{post.Thread.Slug}");
+        await this.db.SaveChangesAsync();
+        return this.Redirect(backToModeration ? "/admin/moderation" : $"/thread/{post.Thread.Slug}");
     }
 
     /// <summary>Admin: reverse a censor — restore a post (and its reply subtree) or the whole thread.</summary>

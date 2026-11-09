@@ -1,0 +1,81 @@
+@model AdminModerationViewModel
+@{ ViewData["Title"] = "Post safety check"; }
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+    <h1 style="margin:0;">Post safety check</h1>
+    <span style="flex:1"></span>
+    <a class="btn btn-sm" asp-controller="Admin" asp-action="Index">← Admin</a>
+</div>
+<p class="muted">
+    Every public post and reply is checked automatically (new and edited ones within about 10 minutes). Posts that may need removing are listed here, most serious first.
+    Nothing is hidden automatically: <strong>Remove</strong> censors the post (and the replies under it), <strong>Keep</strong> clears the flag. Private messages are end-to-end encrypted and never checked.
+</p>
+<p class="muted" style="font-size:13px;">
+    @if (!Model.Enabled) { <strong style="color:#ff8a8a;">Checker is off (no API key on the server).</strong> }
+    Checked @Model.Checked of @Model.TotalPosts live posts · @Model.Clean clean · @Model.Flagged.Count flagged · checked today: @Model.CheckedToday
+    @if (Model.Errors > 0) { <span> · @Model.Errors waiting to retry</span> }
+</p>
+
+@if (Model.Flagged.Count == 0)
+{
+    <div class="panel"><p class="muted" style="margin:0;">Nothing flagged. All checked posts look fine.</p></div>
+}
+else
+{
+    <div class="panel">
+        @foreach (var r in Model.Flagged)
+        {
+            var color = r.Severity switch { "high" => "#ff5c5c", "medium" => "#ffa94d", _ => "#ffd43b" };
+            <div class="report-row" id="mod-@r.PostId">
+                <div style="flex:1 1 auto;min-width:0;">
+                    <div>
+                        <span class="chip" style="color:@color;border-color:@color;">@r.Severity</span>
+                        @if (!string.IsNullOrWhiteSpace(r.Categories))
+                        {
+                            foreach (var c in r.Categories.Split(',')) { <span class="chip">@c.Replace('_', ' ')</span> }
+                        }
+                        <a href="/thread/@r.ThreadSlug#post-@r.PostId"><strong>@r.ThreadTitle</strong></a>
+                        @if (r.IsOpeningPost) { <span class="chip">opening post</span> }
+                    </div>
+                    <div class="thread-meta" style="margin-top:2px;">
+                        by <a asp-controller="Profile" asp-action="View" asp-route-name="@r.AuthorName"><strong>@r.AuthorName</strong></a>
+                        · posted @TimeAgo(r.PostedAtUtc)
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(r.Reason))
+                    {
+                        <div class="report-reason-shown">Why: @r.Reason</div>
+                    }
+                    <div class="report-excerpt">@r.Excerpt</div>
+                </div>
+                <div class="report-actions">
+                    <a class="btn btn-sm" href="/thread/@r.ThreadSlug#post-@r.PostId">Open post</a>
+                    <form action="/thread/post/@r.PostId/censor" method="post" style="display:inline"
+                          data-confirm="@(r.IsOpeningPost ? "This is the opening post: removing it hides the whole thread. Remove?" : "Remove this post and the replies under it?")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="returnTo" value="moderation" />
+                        <button type="submit" class="btn btn-sm btn-primary">Remove</button>
+                    </form>
+                    <form asp-controller="Admin" asp-action="ModerationKeep" asp-route-postId="@r.PostId" method="post" style="display:inline">
+                        <button type="submit" class="btn btn-sm">Keep</button>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (Model.RecentlyHandled.Count > 0)
+{
+    <h2 style="margin-top:24px;">Recently handled</h2>
+    <div class="panel">
+        @foreach (var r in Model.RecentlyHandled)
+        {
+            <div class="thread-meta" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                <strong>@(r.State == MoneroUserForum.Data.Entities.PostModerationState.Removed ? "Removed" : "Kept")</strong>
+                · <a href="/thread/@r.ThreadSlug#post-@r.PostId">@r.ThreadTitle</a> by @r.AuthorName
+                @if (!string.IsNullOrWhiteSpace(r.Reason)) { <span> · @r.Reason</span> }
+                @if (r.AdminActionBy != null) { <span> · @r.AdminActionBy, @TimeAgo(r.AdminActionAtUtc ?? r.CheckedAtUtc)</span> }
+            </div>
+        }
+    </div>
+}
