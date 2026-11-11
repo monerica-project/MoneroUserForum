@@ -59,6 +59,9 @@ public class ProfileViewModel
     public bool IsBanned { get; set; }
     public bool IsSelf { get; set; }
 
+    /// <summary>Account id, used for the admin "Ban &amp; hide everything" link.</summary>
+    public int UserId { get; set; }
+
     public string? WebsiteUrl { get; set; }
     public string? TwitterUrl { get; set; }
     public string? SimpleXAddress { get; set; }

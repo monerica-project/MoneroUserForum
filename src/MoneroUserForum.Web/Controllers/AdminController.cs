@@ -40,6 +40,10 @@ public class AdminController : Controller
             ModerationFlagged = await this.db.PostModerations.CountAsync(m => m.State == PostModerationState.Flagged && !m.Post!.IsCensored),
             ModerationEnabled = MoneroUserForum.Web.Moderation.PostModerationScanner.IsConfigured(this.HttpContext.RequestServices.GetRequiredService<IConfiguration>()),
         };
+        vm.Banned = (await this.RowsAsync(this.db.Users.Where(u => u.IsBanned && !u.IsDeleted)))
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .Take(25)
+            .ToList();
         return this.View(vm);
     }
 
@@ -308,10 +312,14 @@ public class AdminController : Controller
     }
 
     [HttpGet("members")]
-    public async Task<IActionResult> Members()
+    public async Task<IActionResult> Members(string? show = null)
     {
-        // All accounts (pending, approved, banned) so an admin can set any status.
-        var rows = await this.RowsAsync(this.db.Users.Where(u => !u.IsDeleted));
+        // All accounts (pending, approved, banned) so an admin can set any status;
+        // ?show=banned lists only banned accounts (linked from the dashboard's Banned tile).
+        var bannedOnly = string.Equals(show, "banned", StringComparison.OrdinalIgnoreCase);
+        var query = this.db.Users.Where(u => !u.IsDeleted && (!bannedOnly || u.IsBanned));
+        this.ViewData["BannedOnly"] = bannedOnly;
+        var rows = await this.RowsAsync(query);
         return this.View(rows);
     }
 
@@ -360,6 +368,74 @@ public class AdminController : Controller
         }
 
         return this.RedirectToAction(nameof(this.Members));
+    }
+
+    /// <summary>
+    /// Step 1 of 2 (linked from the member's profile): shows what "Ban &amp; hide everything" will do.
+    /// </summary>
+    [HttpGet("ban-and-hide/{id:int}")]
+    public async Task<IActionResult> BanAndHide(int id)
+    {
+        var user = await this.users.FindByIdAsync(id.ToString());
+        if (user is null || user.IsDeleted)
+        {
+            return this.NotFound();
+        }
+
+        this.ViewData["Title"] = $"Ban {user.DisplayName}";
+        return this.View(new BanAndHideViewModel
+        {
+            UserId = user.Id,
+            DisplayName = user.DisplayName,
+            IsBanned = user.IsBanned,
+            IsAdmin = await this.users.IsInRoleAsync(user, Roles.Admin),
+            ThreadCount = await this.db.ForumThreads.CountAsync(t => t.Posts.Any(p => p.IsOpeningPost && p.AuthorId == id) && !t.IsCensored),
+            ReplyCount = await this.db.Posts.CountAsync(p => p.AuthorId == id && !p.IsOpeningPost && !p.IsCensored),
+        });
+    }
+
+    /// <summary>
+    /// Step 2 of 2: ban the member and censor (hide) every thread they started and every reply
+    /// they wrote. Censoring is the existing reversible admin hide: censored threads drop out of
+    /// every listing and 404 for non-admins; admins can still uncensor from the thread page.
+    /// </summary>
+    [HttpPost("ban-and-hide/{id:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BanAndHideConfirm(int id)
+    {
+        var user = await this.users.FindByIdAsync(id.ToString());
+        if (user is null || user.IsDeleted)
+        {
+            return this.NotFound();
+        }
+
+        if (await this.users.IsInRoleAsync(user, Roles.Admin))
+        {
+            this.TempData["Message"] = "Admins can't be banned here.";
+            return this.Redirect($"/profile/{Uri.EscapeDataString(user.DisplayName)}");
+        }
+
+        user.IsBanned = true;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await this.users.UpdateAsync(user);
+
+        var threadIds = await this.db.Posts
+            .Where(p => p.IsOpeningPost && p.AuthorId == id)
+            .Select(p => p.ThreadId)
+            .Distinct()
+            .ToListAsync();
+        var threads = await this.db.ForumThreads
+            .Where(t => threadIds.Contains(t.Id) && !t.IsCensored)
+            .ExecuteUpdateAsync(x => x.SetProperty(t => t.IsCensored, true));
+        await this.db.Posts
+            .Where(p => threadIds.Contains(p.ThreadId))
+            .ExecuteUpdateAsync(x => x.SetProperty(p => p.IsCensored, true));
+        var replies = await this.db.Posts
+            .Where(p => p.AuthorId == id && !p.IsCensored)
+            .ExecuteUpdateAsync(x => x.SetProperty(p => p.IsCensored, true));
+
+        this.TempData["Message"] = $"Banned {user.DisplayName} and hid {threads} thread{(threads == 1 ? "" : "s")} and {replies} repl{(replies == 1 ? "y" : "ies")}.";
+        return this.Redirect($"/profile/{Uri.EscapeDataString(user.DisplayName)}");
     }
 
     [HttpPost("unban/{id:int}")]

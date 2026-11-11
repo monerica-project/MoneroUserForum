@@ -1,8 +1,9 @@
 @model List<AdminMemberRow>
 @{ ViewData["Title"] = "Members"; }
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-    <h1 style="margin:0;">All members</h1>
+    <h1 style="margin:0;">@((ViewData["BannedOnly"] as bool?) == true ? "Banned members" : "All members")</h1>
     <span style="flex:1"></span>
+    <a class="btn btn-sm" href="/admin/members?show=banned">Banned only</a>
     <a class="btn btn-sm" asp-action="Approvals">Pending queue</a>
 </div>
 <p class="muted">Every account and its status. Approve pending members, or ban/unban anyone.</p>
@@ -55,6 +56,7 @@
                     <form asp-action="Ban" asp-route-id="@m.Id" method="post" data-confirm="Ban @m.DisplayName?">
                         <button type="submit" class="btn btn-danger btn-sm">Ban</button>
                     </form>
+                    <a class="btn btn-danger btn-sm" href="/admin/ban-and-hide/@m.Id">Ban &amp; hide all</a>
                 }
             </div>
         </div>

@@ -85,8 +85,13 @@ public class ProfileController : Controller
             })
             .ToListAsync();
 
-        return this.View(new ProfileViewModel
+        // A banned member's promotion (links, signature, donation address) is hidden from everyone
+        // but admins, the same way their posts are.
+        var hideExtras = user.IsBanned && !this.User.IsInRole(Roles.Admin);
+
+        var model = new ProfileViewModel
         {
+            UserId = user.Id,
             DisplayName = user.DisplayName,
             AvatarUrl = string.IsNullOrEmpty(user.AvatarPath) ? null : this.images.PublicUrl(user.AvatarPath),
             JoinedAtUtc = user.CreatedAtUtc,
@@ -116,7 +121,17 @@ public class ProfileController : Controller
             Link2Url = user.Link2Url,
             Link3Label = user.Link3Label,
             Link3Url = user.Link3Url,
-        });
+        };
+
+        if (hideExtras)
+        {
+            model.WebsiteUrl = model.TwitterUrl = model.SimpleXAddress = model.TelegramHandle = model.MonericaUrl = null;
+            model.Signature = model.MoneroDonationAddress = model.MoneroQrDataUri = model.PgpPublicKey = null;
+            model.Link1Label = model.Link1Url = model.Link2Label = model.Link2Url = model.Link3Label = model.Link3Url = null;
+            model.AvatarUrl = null;
+        }
+
+        return this.View(model);
     }
 
     private const int ThanksPageSize = 20;

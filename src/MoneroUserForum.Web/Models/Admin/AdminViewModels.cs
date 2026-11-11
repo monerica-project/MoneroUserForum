@@ -26,6 +26,9 @@ public class AdminDashboardViewModel
     public int ContactUnread { get; set; }
     public int ModerationFlagged { get; set; }
     public bool ModerationEnabled { get; set; }
+
+    /// <summary>Banned members (newest accounts first), listed on the dashboard for quick access.</summary>
+    public List<AdminMemberRow> Banned { get; set; } = new ();
 }
 
 public class AdminModerationRow
@@ -75,4 +78,14 @@ public class AdminReportRow
     public string? Reason { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public int ReportCountForPost { get; set; }
+}
+
+public class BanAndHideViewModel
+{
+    public int UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public bool IsBanned { get; set; }
+    public bool IsAdmin { get; set; }
+    public int ThreadCount { get; set; }
+    public int ReplyCount { get; set; }
 }

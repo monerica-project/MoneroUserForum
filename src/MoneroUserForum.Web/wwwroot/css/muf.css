@@ -606,3 +606,8 @@ a[href^="/profile/"]:hover { color: var(--mono-orange); }
 .enc-howto > ol, .enc-howto > p, .enc-howto > pre { margin-left: 14px; margin-right: 14px; }
 .enc-howto > ol li { margin-bottom: 6px; }
 @media (max-width: 560px) { .enc-table td:first-child { white-space: normal; } }
+
+/* Links to a reply (#post-123) and any other in-page anchor stop just below the sticky header.
+   --header-h is measured by js/anchor-offset.js; 64px covers the one-line desktop header without JS. */
+html { scroll-padding-top: calc(var(--header-h, 64px) + 10px); }
+.post:target { border-color: var(--mono-orange); }

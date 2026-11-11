@@ -1,0 +1,24 @@
+@model BanAndHideViewModel
+
+<div class="panel">
+    <h1 style="margin-top:0;">Ban @Model.DisplayName and hide everything?</h1>
+    @if (Model.IsAdmin)
+    {
+        <p>@Model.DisplayName is an admin and can't be banned here.</p>
+        <a class="btn" href="/profile/@Uri.EscapeDataString(Model.DisplayName)">Back to profile</a>
+    }
+    else
+    {
+        <ul>
+            <li>@(Model.IsBanned ? "Already banned." : "Bans the account: they can no longer post, reply or message.")</li>
+            <li>Hides <strong>@Model.ThreadCount</strong> thread@(Model.ThreadCount == 1 ? "" : "s") they started, with every reply in them.</li>
+            <li>Hides <strong>@Model.ReplyCount</strong> repl@(Model.ReplyCount == 1 ? "y" : "ies") they wrote in other threads.</li>
+            <li>Hides their profile links, signature, avatar and donation address from the public.</li>
+        </ul>
+        <p class="muted" style="font-size:13px;">Nothing is erased: hidden posts stay visible to admins and can be restored with Uncensor on the thread, and Unban is on the Members page.</p>
+        <form asp-action="BanAndHideConfirm" asp-route-id="@Model.UserId" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-primary" style="background:#c62828;border-color:#c62828;">Yes, ban and hide everything</button>
+        </form>
+        <a class="btn" href="/profile/@Uri.EscapeDataString(Model.DisplayName)" style="margin-left:8px;">Cancel</a>
+    }
+</div>

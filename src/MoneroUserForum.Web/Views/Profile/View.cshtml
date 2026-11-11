@@ -32,6 +32,12 @@
                     <a class="btn btn-sm btn-primary" asp-controller="Messages" asp-action="New" asp-route-to="@Model.DisplayName">Message</a>
                 </div>
             }
+            @if (!Model.IsSelf && User.IsInRole("Admin"))
+            {
+                <div style="margin-top:10px;">
+                    <a class="btn btn-sm" style="color:#ff8a8a;border-color:rgba(255,82,82,.5);" href="/admin/ban-and-hide/@Model.UserId">@(Model.IsBanned ? "Hide all their content" : "Ban & hide all content")</a>
+                </div>
+            }
         </div>
     </div>
 
