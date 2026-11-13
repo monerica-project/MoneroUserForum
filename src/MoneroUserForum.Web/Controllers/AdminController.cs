@@ -40,10 +40,6 @@ public class AdminController : Controller
             ModerationFlagged = await this.db.PostModerations.CountAsync(m => m.State == PostModerationState.Flagged && !m.Post!.IsCensored),
             ModerationEnabled = MoneroUserForum.Web.Moderation.PostModerationScanner.IsConfigured(this.HttpContext.RequestServices.GetRequiredService<IConfiguration>()),
         };
-        vm.Banned = (await this.RowsAsync(this.db.Users.Where(u => u.IsBanned && !u.IsDeleted)))
-            .OrderByDescending(r => r.CreatedAtUtc)
-            .Take(25)
-            .ToList();
         return this.View(vm);
     }
 

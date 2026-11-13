@@ -32,10 +32,7 @@
         <div style="font-size:30px;font-weight:800;">@Model.MemberCount</div>
         <div class="muted">Members</div>
     </a>
-    <a class="panel" style="margin:0;text-align:center;" href="#banned">
-        <div style="font-size:30px;font-weight:800;color:@(Model.BannedCount > 0 ? "#ff8a8a" : "inherit");">@Model.BannedCount</div>
-        <div class="muted">Banned</div>
-    </a>
+
     <div class="panel" style="margin:0;text-align:center;">
         <div style="font-size:30px;font-weight:800;">@Model.ThreadCount</div>
         <div class="muted">Threads</div>
@@ -50,36 +47,7 @@
     <a class="btn" asp-action="Reports">Reported posts (@Model.ReportsPending)</a>
     <a class="btn" asp-action="Messages">Contact inbox (@Model.ContactUnread)</a>
     <a class="btn" asp-action="Members">Manage members</a>
+    <a class="btn" href="/admin/members?show=banned">Banned (@Model.BannedCount)</a>
     <a class="btn" asp-action="Analytics">📈 Analytics</a>
 </div>
 
-<div class="panel" id="banned">
-    <div style="display:flex;align-items:center;gap:12px;">
-        <h2 class="panel-title" style="margin:0;">Banned members (@Model.BannedCount)</h2>
-        <span style="flex:1"></span>
-        @if (Model.BannedCount > Model.Banned.Count)
-        {
-            <a class="btn btn-sm" href="/admin/members?show=banned">See all @Model.BannedCount &rarr;</a>
-        }
-    </div>
-    @if (Model.Banned.Count == 0)
-    {
-        <p class="muted" style="margin:8px 0 0;">Nobody is banned.</p>
-    }
-    @foreach (var b in Model.Banned)
-    {
-        <div class="thread-row" style="align-items:center;">
-            <div style="flex:1 1 auto;min-width:0;">
-                <a href="/profile/@Uri.EscapeDataString(b.DisplayName)"><strong>@b.DisplayName</strong></a>
-                <span class="muted" style="font-size:12px;margin-left:6px;">@b.PostCount posts · joined @b.CreatedAtUtc.ToString("MMM d, yyyy")</span>
-            </div>
-            <div style="display:flex;gap:6px;">
-                <a class="btn btn-sm" href="/profile/@Uri.EscapeDataString(b.DisplayName)">Profile</a>
-                <a class="btn btn-sm" href="/admin/ban-and-hide/@b.Id">Hide all content</a>
-                <form asp-action="Unban" asp-route-id="@b.Id" method="post" data-confirm="Unban @b.DisplayName?">
-                    <button type="submit" class="btn btn-sm">Unban</button>
-                </form>
-            </div>
-        </div>
-    }
-</div>
