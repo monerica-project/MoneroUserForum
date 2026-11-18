@@ -68,6 +68,11 @@
             <input type="email" name="Email" value="@email" placeholder="you@example.com" />
             <div class="hint">@(hasEmail ? "An email is set — password reset is available. Clear it to remove." : "No email set. Add one to enable password reset.")</div>
         </div>
+        <div class="form-group">
+            <label>Current password</label>
+            <input type="password" name="CurrentPassword" autocomplete="current-password" required />
+            <div class="hint">Needed to change or remove your email.</div>
+        </div>
         <button type="submit" class="btn">Save email</button>
     </form>
 </div>

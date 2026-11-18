@@ -62,6 +62,13 @@ public class ProfileController : Controller
         var thanksGiven = await this.db.PostThanks.CountAsync(t => t.UserId == user.Id);
         var meId = this.users.GetUserId(this.User);
 
+        // An account nobody has approved yet has no public profile: otherwise a fresh sign-up could
+        // publish links, a signature and post snippets without ever passing approval.
+        if (!user.IsApproved && meId != user.Id.ToString() && !this.User.IsInRole(Roles.Admin))
+        {
+            return this.NotFound();
+        }
+
         // This member's threads and replies, newest first, paged. Only publicly-visible content
         // (not deleted, not censored, in a live thread).
         var postsQuery = this.db.Posts

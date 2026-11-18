@@ -102,6 +102,10 @@ public class SetEmailViewModel
     [EmailAddress]
     [Display(Name = "Email (leave blank to remove)")]
     public string? Email { get; set; }
+
+    [DataType(DataType.Password)]
+    [Display(Name = "Current password")]
+    public string? CurrentPassword { get; set; }
 }
 
 public class ForgotPasswordViewModel

@@ -530,6 +530,13 @@ public class ThreadController : Controller
         var authorId = this.CurrentUserId()!.Value;
         var now = DateTime.UtcNow;
 
+        // A reply may only point at a post in this same thread.
+        if (model.ReplyToPostId is int replyTo
+            && !await this.db.Posts.AnyAsync(p => p.Id == replyTo && p.ThreadId == thread.Id))
+        {
+            model.ReplyToPostId = null;
+        }
+
         var post = new Post
         {
             ThreadId = thread.Id,
@@ -673,10 +680,21 @@ public class ThreadController : Controller
             return this.Forbid();
         }
 
-        post.IsDeleted = true;
+        if (this.IsAuthor(post.AuthorId))
+        {
+            post.IsDeleted = true;
+        }
+        else
+        {
+            // Removed by a moderator: censor it, so the author can't bring it back by editing.
+            post.IsCensored = true;
+        }
+
         post.UpdatedAtUtc = DateTime.UtcNow;
         await this.db.SaveChangesAsync();
-        this.TempData["Message"] = "Post deleted. You can bring it back any time by editing it.";
+        this.TempData["Message"] = this.IsAuthor(post.AuthorId)
+            ? "Post deleted. You can bring it back any time by editing it."
+            : "Post removed by a moderator.";
         return this.Redirect($"/thread/{post.Thread.Slug}");
     }
 
@@ -1044,7 +1062,7 @@ public class ThreadController : Controller
 
         // Clear intra-thread reply links first (ReplyToPost FK is Restrict), then hard-delete
         // the posts and the thread. DB cascades remove images, notifications, and subscriptions.
-        await this.db.Posts.Where(p => p.ThreadId == id)
+        await this.db.Posts.Where(p => p.ThreadId == id || (p.ReplyToPost != null && p.ReplyToPost.ThreadId == id))
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.ReplyToPostId, (int?)null));
         await this.db.Posts.Where(p => p.ThreadId == id).ExecuteDeleteAsync();
         await this.db.ForumThreads.Where(t => t.Id == id).ExecuteDeleteAsync();

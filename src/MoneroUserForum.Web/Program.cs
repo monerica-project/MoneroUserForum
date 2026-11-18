@@ -139,6 +139,7 @@ builder.Services.PostConfigure<MoneroUserForum.Services.Storage.BunnyStorageOpti
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("sponsors");
 builder.Services.AddSingleton<MoneroUserForum.Web.Support.SponsorService>();
+builder.Services.AddSingleton<MoneroUserForum.Web.Support.SignupGuard>();
 
 // Behind nginx (TLS terminated there): trust the forwarded proto so Request.Scheme
 // is https for absolute URLs (e.g. password-reset links).

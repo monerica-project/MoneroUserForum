@@ -59,10 +59,10 @@ public class AccountController : Controller
 
     private void SetCaptcha()
     {
-        var a = Random.Shared.Next(1, 9);
-        var b = Random.Shared.Next(1, 9);
-        this.HttpContext.Session.SetInt32("captcha", a + b);
-        this.ViewBag.Captcha = $"{a} + {b}";
+        var (question, answer) = MoneroUserForum.Web.Support.SignupGuard.NewQuestion();
+        this.HttpContext.Session.SetInt32("captcha", answer);
+        this.HttpContext.Session.SetString("captcha" + "_at", DateTime.UtcNow.Ticks.ToString());
+        this.ViewBag.Captcha = question;
     }
 
     [HttpGet("register")]
@@ -78,13 +78,35 @@ public class AccountController : Controller
     {
         // Spam-filter: the answer must match the sum stored in session at GET time.
         var expected = this.HttpContext.Session.GetInt32("captcha");
-        if (expected is null || !int.TryParse((model.CaptchaAnswer ?? string.Empty).Trim(), out var ans) || ans != expected.Value)
+        // Answers that arrive faster than a person can read the form are treated as wrong.
+        var issuedAt = long.TryParse(this.HttpContext.Session.GetString("captcha" + "_at"), out var ticks) ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.UtcNow;
+        var tooFast = DateTime.UtcNow - issuedAt < MoneroUserForum.Web.Support.SignupGuard.MinimumFillTime;
+        if (tooFast || expected is null || !int.TryParse((model.CaptchaAnswer ?? string.Empty).Trim(), out var ans) || ans != expected.Value)
         {
             this.ModelState.AddModelError(nameof(model.CaptchaAnswer), "Incorrect — please solve the sum shown.");
         }
 
         if (!this.ModelState.IsValid)
         {
+            this.SetCaptcha();
+            return this.View(model);
+        }
+
+        // Scripted sign-ups: refuse probe/test wording and test email domains, and cap how many
+        // new accounts can be requested per hour site-wide.
+        var guard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
+        if (MoneroUserForum.Web.Support.SignupGuard.LooksAutomated(model.JoinNote)
+            || MoneroUserForum.Web.Support.SignupGuard.LooksAutomated(model.Username)
+            || MoneroUserForum.Web.Support.SignupGuard.IsThrowawayTestEmail(model.Email))
+        {
+            this.ModelState.AddModelError(string.Empty, MoneroUserForum.Web.Support.SignupGuard.RefusedMessage);
+            this.SetCaptcha();
+            return this.View(model);
+        }
+
+        if (!guard.TryCount("register", MoneroUserForum.Web.Support.SignupGuard.RegistrationsPerHour, MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext), MoneroUserForum.Web.Support.SignupGuard.RegistrationsPerVisitorPerHour))
+        {
+            this.ModelState.AddModelError(string.Empty, MoneroUserForum.Web.Support.SignupGuard.BusyMessage);
             this.SetCaptcha();
             return this.View(model);
         }
@@ -161,6 +183,16 @@ public class AccountController : Controller
             return this.View(model);
         }
 
+        // Sign-in attempts are limited per visitor and for the whole site, so nobody can guess
+        // passwords at speed or keep someone else's account locked by hammering it.
+        var loginGuard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
+        if (!loginGuard.TryCount("login", 300, MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext), 12))
+        {
+            const string busy = "Too many sign-in attempts. Please wait a while and try again.";
+            this.ModelState.AddModelError(string.Empty, busy);
+            return this.IsFetch() ? this.BadRequest(new { ok = false, error = busy }) : this.View(model);
+        }
+
         var normalized = model.Username.Trim().ToLowerInvariant();
         var user = await this.users.FindByNameAsync(normalized);
         if (user is null || user.IsDeleted)
@@ -174,9 +206,8 @@ public class AccountController : Controller
         var result = await this.signIn.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
-            var msg = result.IsLockedOut
-                ? "This account is temporarily locked after too many attempts. Try again later."
-                : "Invalid username or password.";
+            // One message for every failure, so the page doesn't reveal which accounts exist.
+            var msg = "Invalid username or password. After several wrong tries an account is locked for a few minutes.";
             this.ModelState.AddModelError(string.Empty, msg);
             return this.IsFetch() ? this.BadRequest(new { ok = false, error = msg }) : this.View(model);
         }
@@ -456,6 +487,13 @@ public class AccountController : Controller
             return this.Challenge();
         }
 
+        // The email is where password-reset links go, so changing it needs the current password.
+        if (string.IsNullOrEmpty(model.CurrentPassword) || !await this.users.CheckPasswordAsync(user, model.CurrentPassword))
+        {
+            this.TempData["Error"] = "Enter your current password to change your email.";
+            return this.RedirectToAction(nameof(this.Settings));
+        }
+
         await this.users.SetEmailAsync(user, string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim());
         this.TempData["Message"] = "Email updated.";
         return this.RedirectToAction(nameof(this.Settings));
@@ -507,7 +545,16 @@ public class AccountController : Controller
             return this.View(model);
         }
 
-        var user = await this.users.FindByNameAsync(model.Username.Trim().ToLowerInvariant());
+        // Reset emails are limited so the form can't be used to flood someone's inbox
+        // (14 were sent to the admin by a scanner on 2026-11-16): one per account every 30
+        // minutes, three per visitor per hour, ten per hour for the whole site. The page shows
+        // the same "sent" message either way.
+        var resetGuard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
+        var resetName = model.Username.Trim().ToLowerInvariant();
+        var mayEmail = resetGuard.TryCount("reset-mail|" + resetName, 2)
+            && resetGuard.TryCount("reset-mail", 10, MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext), 3);
+
+        var user = mayEmail ? await this.users.FindByNameAsync(resetName) : null;
         if (user is not null && !user.IsDeleted && !string.IsNullOrWhiteSpace(user.Email) && this.email.IsConfigured)
         {
             var token = await this.users.GeneratePasswordResetTokenAsync(user);
@@ -539,14 +586,32 @@ public class AccountController : Controller
             return this.View(model);
         }
 
-        var user = await this.users.FindByIdAsync(model.UserId);
-        if (user is null)
+        // Guessing at reset links is capped per visitor and for the whole site.
+        var attemptGuard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
+        if (!attemptGuard.TryCount("reset-attempt", 30, MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext), 5))
         {
-            this.TempData["Message"] = "Password reset. You can now sign in.";
-            return this.RedirectToAction(nameof(this.Login));
+            this.ModelState.AddModelError(string.Empty, "Too many attempts. Please wait an hour and use the newest link from your email.");
+            return this.View(model);
         }
 
-        var token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(model.Token));
+        var user = await this.users.FindByIdAsync(model.UserId);
+        string token;
+        try
+        {
+            token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(model.Token));
+        }
+        catch (FormatException)
+        {
+            token = string.Empty;
+        }
+
+        if (user is null || token.Length == 0)
+        {
+            // Unknown account or a damaged link: say so plainly instead of claiming success.
+            this.ModelState.AddModelError(string.Empty, "This reset link is not valid. Request a new one.");
+            return this.View(model);
+        }
+
         var result = await this.users.ResetPasswordAsync(user, token, model.NewPassword);
         if (!result.Succeeded)
         {
