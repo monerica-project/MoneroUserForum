@@ -16,5 +16,12 @@ public class EmailOptions
     /// <summary>Absolute site base URL used to build links inside notification emails.</summary>
     public string SiteUrl { get; set; } = "https://monerouserforum.com";
 
+    /// <summary>
+    /// The forum's own .onion host name (e.g. "abc…xyz.onion"), optional. Requests arriving on exactly
+    /// this host get onion links; every other Host header falls back to <see cref="SiteUrl"/>, so a
+    /// forged Host header can never end up inside a link the site sends out.
+    /// </summary>
+    public string OnionHost { get; set; } = string.Empty;
+
     public bool Enabled => !string.IsNullOrWhiteSpace(this.Host) && !string.IsNullOrWhiteSpace(this.FromAddress);
 }

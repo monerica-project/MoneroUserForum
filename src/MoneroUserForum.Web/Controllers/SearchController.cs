@@ -110,14 +110,18 @@ public class SearchController : Controller
             Snippet = p.Body.Length <= 180 ? p.Body : p.Body[..180] + "…",
         }).ToList();
 
+        // Only approved members are listed (pending accounts have no public profile), banned ones
+        // only for signed-in members, and counts include only posts others can actually see.
+        var signedIn = this.User.Identity?.IsAuthenticated == true;
         var userRows = await this.db.Users
-            .Where(u => !u.IsDeleted && EF.Functions.ILike(u.DisplayName, pattern))
+            .Where(u => !u.IsDeleted && u.IsApproved && (signedIn || !u.IsBanned) && EF.Functions.ILike(u.DisplayName, pattern))
             .Take(20)
             .Select(u => new
             {
                 u.Id,
                 u.DisplayName,
-                PostCount = this.db.Posts.Count(p => p.AuthorId == u.Id && !p.IsDeleted),
+                PostCount = this.db.Posts.Count(p => p.AuthorId == u.Id && !p.IsDeleted && !p.IsCensored
+                    && !p.Thread!.IsDeleted && !p.Thread.IsCensored && p.Thread.Author!.IsApproved),
             })
             .ToListAsync();
 

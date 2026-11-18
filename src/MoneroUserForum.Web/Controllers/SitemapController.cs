@@ -1,24 +1,30 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MoneroUserForum.Data;
 using MoneroUserForum.Data.Enums;
+using MoneroUserForum.Services.Email;
+using MoneroUserForum.Web.Support;
 
 namespace MoneroUserForum.Web.Controllers;
 
 public class SitemapController : Controller
 {
     private readonly AppDbContext db;
+    private readonly EmailOptions siteOptions;
 
-    public SitemapController(AppDbContext db)
+    public SitemapController(AppDbContext db, IOptions<EmailOptions> siteOptions)
     {
         this.db = db;
+        this.siteOptions = siteOptions.Value;
     }
 
     [HttpGet("/sitemap.xml")]
     public async Task<IActionResult> Index()
     {
-        var host = $"{this.Request.Scheme}://{this.Request.Host}";
+        // Configured site URL (or the configured onion host), never the raw Host header.
+        var host = SiteLinks.BaseUrl(this.Request, this.siteOptions);
 
         var sb = new StringBuilder();
         sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -46,7 +52,8 @@ public class SitemapController : Controller
         }
 
         var threads = await this.db.ForumThreads
-            .Where(t => !t.IsDeleted && !t.Author!.IsDeleted)
+            // Same rule as the public thread lists: no censored threads and none by unapproved members.
+            .Where(ThreadVisibility.IsPublic)
             .OrderByDescending(t => t.LastPostAtUtc)
             .Select(t => new { t.Slug, t.LastPostAtUtc })
             .Take(5000)

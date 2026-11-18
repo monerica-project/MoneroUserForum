@@ -99,7 +99,9 @@ public class ContactController : Controller
                 await this.email.SendAsync(
                     AdminEmail,
                     "New contact message — Monero User Forum",
-                    $"From: {from}\nReply-to: {reply}\n\n{message.Message}\n\n— Read it in the admin inbox: {this.Request.Scheme}://{this.Request.Host}/admin/messages");
+                    // The admin link uses the configured site URL; the Host header is attacker-controlled
+                    // and would let a sender point the admin at a look-alike sign-in page.
+                    $"From: {from}\nReply-to: {reply}\n\n{message.Message}\n\n— Read it in the admin inbox: {MoneroUserForum.Web.Support.SiteLinks.ClearnetBaseUrl(this.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value)}/admin/messages");
             }
             catch
             {

@@ -56,7 +56,9 @@ public class ProfileController : Controller
             return this.NotFound();
         }
 
-        var postCount = await this.db.Posts.CountAsync(p => p.AuthorId == user.Id && !p.IsDeleted);
+        // Counts only posts others can see (not censored, in a live public thread).
+        var postCount = await this.db.Posts.CountAsync(p => p.AuthorId == user.Id && !p.IsDeleted && !p.IsCensored
+            && !p.Thread!.IsDeleted && !p.Thread.IsCensored && p.Thread.Author!.IsApproved);
         // Thanks this member has been given ON their posts (received) vs. thanks they handed out (given).
         var thanksReceived = await this.db.PostThanks.CountAsync(t => t.PostAuthorId == user.Id);
         var thanksGiven = await this.db.PostThanks.CountAsync(t => t.UserId == user.Id);
@@ -239,6 +241,15 @@ public class ProfileController : Controller
             {
                 this.ModelState.AddModelError(nameof(model.PgpPublicKey), pgpError!);
             }
+        }
+
+        // Adding, changing or removing the PGP key needs the current password, like changing the
+        // email does: messages to this member are encrypted to that key.
+        var pgpKeyChanging = !string.Equals(NormalizeKey(Trim(model.PgpPublicKey)), NormalizeKey(user.PgpPublicKey), StringComparison.Ordinal);
+        if (pgpKeyChanging
+            && (string.IsNullOrEmpty(model.CurrentPassword) || !await this.users.CheckPasswordAsync(user, model.CurrentPassword)))
+        {
+            this.ModelState.AddModelError(nameof(model.CurrentPassword), "Enter your current password to change your PGP key.");
         }
 
         if (!this.ModelState.IsValid)

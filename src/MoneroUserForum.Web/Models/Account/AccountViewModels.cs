@@ -32,15 +32,6 @@ public class RegisterViewModel
     [Required]
     [Display(Name = "Spam check")]
     public string CaptchaAnswer { get; set; } = string.Empty;
-
-    // E2EE key material, generated in the browser by e2ee.js and injected as hidden
-    // fields on submit. Opaque to the server (private keys arrive already wrapped).
-    public string? EncPublicKey { get; set; }
-    public string? SignPublicKey { get; set; }
-    public string? KdfSalt { get; set; }
-    public string? WrappedPrivateKeys { get; set; }
-    public string? RecoverySalt { get; set; }
-    public string? RecoveryWrappedPrivateKeys { get; set; }
 }
 
 public class LoginViewModel
@@ -76,11 +67,6 @@ public class ChangePasswordViewModel
     [Display(Name = "Confirm new password")]
     [Compare(nameof(NewPassword), ErrorMessage = "The passwords do not match.")]
     public string ConfirmPassword { get; set; } = string.Empty;
-
-    // E2EE: private keys re-wrapped under the new password, injected by e2ee-auth.js so the
-    // password change doesn't orphan the member's encrypted messages.
-    public string? NewKdfSalt { get; set; }
-    public string? NewWrappedPrivateKeys { get; set; }
 }
 
 public class ChangeUsernameViewModel

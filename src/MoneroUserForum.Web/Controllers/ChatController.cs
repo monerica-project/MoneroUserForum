@@ -53,7 +53,13 @@ public class ChatController : Controller
     public async Task<IActionResult> Post(string body)
     {
         body = (body ?? string.Empty).Trim();
-        if (body.Length is > 0 and <= 2000)
+
+        // Each chat post nudges every connected browser to re-fetch the feed, so posting is capped.
+        var guard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
+        var withinLimit = body.Length == 0 || MoneroUserForum.Web.Support.PostingLimits.TryCount(
+            guard, this.User, this.users.GetUserId(this.User), "chat",
+            MoneroUserForum.Web.Support.PostingLimits.ChatPostsPerHour, MoneroUserForum.Web.Support.PostingLimits.ChatPostsPerHour);
+        if (withinLimit && body.Length is > 0 and <= 2000)
         {
             this.db.ChatMessages.Add(new ChatMessage
             {

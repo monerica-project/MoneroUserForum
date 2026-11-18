@@ -156,6 +156,105 @@ public sealed partial class SignupGuard
         }
     }
 
+    /// <summary>
+    /// True when <paramref name="action"/> has already reached its hourly limit for this visitor or
+    /// for the whole site. Only looks: nothing is recorded (see <see cref="Record"/>), so callers can
+    /// check first and count only the attempts that should count (e.g. failed sign-ins).
+    /// </summary>
+    public bool IsOver(string action, int perHour, string visitorKey, int perVisitor)
+    {
+        var allowance = visitorKey == "local" ? perVisitor * 3 : perVisitor;
+        lock (_gate)
+        {
+            return CountRecent(action + "|" + visitorKey) >= allowance || CountRecent(action) >= perHour;
+        }
+    }
+
+    /// <summary>True when <paramref name="key"/> already has <paramref name="perHour"/> entries in the last hour. Only looks.</summary>
+    public bool IsOver(string key, int perHour)
+    {
+        lock (_gate)
+        {
+            return CountRecent(key) >= perHour;
+        }
+    }
+
+    /// <summary>Records one occurrence of <paramref name="action"/> for this visitor and for the whole site.</summary>
+    public void Record(string action, string visitorKey)
+    {
+        lock (_gate)
+        {
+            Add(action + "|" + visitorKey);
+            Add(action);
+        }
+    }
+
+    /// <summary>
+    /// Returns the slot a visitor took with <see cref="TryCount(string, int, string, int)"/>, for
+    /// uses that should not count after all (a sign-in that turned out to be correct).
+    /// </summary>
+    public void GiveBack(string action, string visitorKey)
+    {
+        lock (_gate)
+        {
+            foreach (var key in new[] { action + "|" + visitorKey, action })
+            {
+                if (_recent.TryGetValue(key, out var times) && times.Count > 0)
+                {
+                    times.Dequeue();
+                }
+            }
+        }
+    }
+
+    /// <summary>Records one occurrence under a single key.</summary>
+    public void Record(string key)
+    {
+        lock (_gate)
+        {
+            Add(key);
+        }
+    }
+
+    // Callers hold _gate.
+    private int CountRecent(string key)
+    {
+        if (!_recent.TryGetValue(key, out var times))
+        {
+            return 0;
+        }
+
+        var now = DateTime.UtcNow;
+        while (times.Count > 0 && now - times.Peek() >= TimeSpan.FromHours(1))
+        {
+            times.Dequeue();
+        }
+
+        return times.Count;
+    }
+
+    // Callers hold _gate.
+    private void Add(string key)
+    {
+        // Per-account keys can be many; drop ones idle for an hour so memory stays bounded.
+        if (_recent.Count > 5000)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var old in _recent.Where(p => p.Value.Count == 0 || now - p.Value.Last() >= TimeSpan.FromHours(1)).Select(p => p.Key).ToList())
+            {
+                _recent.Remove(old);
+            }
+        }
+
+        if (!_recent.TryGetValue(key, out var times))
+        {
+            times = new Queue<DateTime>();
+            _recent[key] = times;
+        }
+
+        times.Enqueue(DateTime.UtcNow);
+    }
+
     [GeneratedRegex(@"(?<![a-z0-9])(probe\w*|ssrf|idor|xss|sqli|csrf|pentest\w*|pen\s*test\w*|enumeration|mass\s*assign\w*|injection|security[\s-]+(assessment|audit|research\w*|test\w*)|authori[sz]ed\s+(assessment|test\w*|audit)|qa\s+(tester|test|probe|account)|test\s+account|audit\s*\d{2,}|qa\s*\d{2,})(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 250)]
     private static partial Regex ProbeWords();
 

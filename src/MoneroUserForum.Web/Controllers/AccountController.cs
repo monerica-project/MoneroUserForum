@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MoneroUserForum.Data;
 using MoneroUserForum.Data.Identity;
 using MoneroUserForum.Services.Email;
 using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Web.Models.Account;
+using MoneroUserForum.Web.Support;
 
 namespace MoneroUserForum.Web.Controllers;
 
@@ -143,20 +145,6 @@ public class AccountController : Controller
             return this.View(model);
         }
 
-        // E2EE keys are generated in the browser (e2ee.js) and posted as hidden fields.
-        // They are opaque here — the private keys arrive already wrapped under the password.
-        if (!string.IsNullOrWhiteSpace(model.EncPublicKey) && !string.IsNullOrWhiteSpace(model.WrappedPrivateKeys))
-        {
-            user.EncPublicKey = model.EncPublicKey;
-            user.SignPublicKey = model.SignPublicKey;
-            user.KdfSalt = model.KdfSalt;
-            user.WrappedPrivateKeys = model.WrappedPrivateKeys;
-            user.RecoverySalt = model.RecoverySalt;
-            user.RecoveryWrappedPrivateKeys = model.RecoveryWrappedPrivateKeys;
-            user.E2eeEnabledUtc = now;
-            await this.users.UpdateAsync(user);
-        }
-
         await this.users.AddToRoleAsync(user, Roles.Member);
         await this.signIn.SignInAsync(user, isPersistent: true);
         return this.RedirectToAction(nameof(this.Pending));
@@ -186,7 +174,12 @@ public class AccountController : Controller
         // Sign-in attempts are limited per visitor and for the whole site, so nobody can guess
         // passwords at speed or keep someone else's account locked by hammering it.
         var loginGuard = this.HttpContext.RequestServices.GetRequiredService<MoneroUserForum.Web.Support.SignupGuard>();
-        if (!loginGuard.TryCount("login", 300, MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext), 12))
+        var loginVisitor = MoneroUserForum.Web.Support.SignupGuard.VisitorKey(this.HttpContext);
+
+        // Every attempt takes a slot up front (so a burst of parallel guesses cannot slip past
+        // the limit), and a successful sign-in gives its slot back below. Only failures end up
+        // counted, so ordinary sign-ins cannot use up an allowance that other visitors share.
+        if (!loginGuard.TryCount("login", 300, loginVisitor, 12))
         {
             const string busy = "Too many sign-in attempts. Please wait a while and try again.";
             this.ModelState.AddModelError(string.Empty, busy);
@@ -212,6 +205,7 @@ public class AccountController : Controller
             return this.IsFetch() ? this.BadRequest(new { ok = false, error = msg }) : this.View(model);
         }
 
+        loginGuard.GiveBack("login", loginVisitor);
         user.LastLoginAtUtc = DateTime.UtcNow;
         await this.users.UpdateAsync(user);
 
@@ -219,93 +213,13 @@ public class AccountController : Controller
             ? model.ReturnUrl
             : this.Url.Action("Index", "Home");
 
-        // Fetch path: hand back the wrapped private-key blob so the browser can unlock it
-        // with the still-in-memory password. hasKeys=false means this member has no keys
-        // yet (e.g. an account created before E2EE) — the client generates them now.
+        // The old browser-encryption key blobs are no longer handed out here (messages are PGP now).
         if (this.IsFetch())
         {
-            var hasKeys = !string.IsNullOrEmpty(user.EncPublicKey) && !string.IsNullOrEmpty(user.WrappedPrivateKeys);
-            return this.Json(new
-            {
-                ok = true,
-                redirect,
-                userId = user.Id,
-                hasKeys,
-                keys = hasKeys ? new
-                {
-                    kdfSalt = user.KdfSalt,
-                    wrappedPrivateKeys = user.WrappedPrivateKeys,
-                    encPublicKey = user.EncPublicKey,
-                    signPublicKey = user.SignPublicKey,
-                } : null,
-            });
+            return this.Json(new { ok = true, redirect });
         }
 
         return this.Redirect(redirect!);
-    }
-
-    // ---- E2EE key lifecycle --------------------------------------------
-
-    /// <summary>Returns the signed-in member's public keys + wrapped private-key blob so the
-    /// browser can unlock on this device. The wrapped blob is useless without the password.</summary>
-    [HttpGet("e2ee-keys")]
-    [Authorize]
-    public async Task<IActionResult> E2eeKeys()
-    {
-        var user = await this.users.GetUserAsync(this.User);
-        if (user is null)
-        {
-            return this.Challenge();
-        }
-
-        var hasKeys = !string.IsNullOrEmpty(user.EncPublicKey) && !string.IsNullOrEmpty(user.WrappedPrivateKeys);
-        return this.Json(new
-        {
-            userId = user.Id,
-            hasKeys,
-            kdfSalt = user.KdfSalt,
-            wrappedPrivateKeys = user.WrappedPrivateKeys,
-            encPublicKey = user.EncPublicKey,
-            signPublicKey = user.SignPublicKey,
-            recoverySalt = user.RecoverySalt,
-            recoveryWrappedPrivateKeys = user.RecoveryWrappedPrivateKeys,
-        });
-    }
-
-    /// <summary>Stores the browser-generated public keys + wrapped private blobs. First-time
-    /// only — never overwrites existing keys (that would orphan a member's received messages).</summary>
-    [HttpPost("e2ee-setup")]
-    [ValidateAntiForgeryToken]
-    [Authorize]
-    public async Task<IActionResult> E2eeSetup(E2eeSetupModel model)
-    {
-        var user = await this.users.GetUserAsync(this.User);
-        if (user is null)
-        {
-            return this.Challenge();
-        }
-
-        if (!string.IsNullOrEmpty(user.EncPublicKey))
-        {
-            return this.BadRequest(new { ok = false, error = "Encryption keys are already set up for this account." });
-        }
-
-        if (string.IsNullOrWhiteSpace(model.EncPublicKey) || string.IsNullOrWhiteSpace(model.SignPublicKey)
-            || string.IsNullOrWhiteSpace(model.KdfSalt) || string.IsNullOrWhiteSpace(model.WrappedPrivateKeys))
-        {
-            return this.BadRequest(new { ok = false, error = "Incomplete key material." });
-        }
-
-        user.EncPublicKey = model.EncPublicKey;
-        user.SignPublicKey = model.SignPublicKey;
-        user.KdfSalt = model.KdfSalt;
-        user.WrappedPrivateKeys = model.WrappedPrivateKeys;
-        user.RecoverySalt = model.RecoverySalt;
-        user.RecoveryWrappedPrivateKeys = model.RecoveryWrappedPrivateKeys;
-        user.E2eeEnabledUtc = DateTime.UtcNow;
-        await this.users.UpdateAsync(user);
-
-        return this.Json(new { ok = true });
     }
 
     [HttpPost("logout")]
@@ -389,46 +303,9 @@ public class AccountController : Controller
             return this.View(nameof(this.Settings), model);
         }
 
-        // E2EE: the browser re-wrapped the private keys under the new password and posted the
-        // result as hidden fields. Store them so the member can still read their encrypted
-        // messages after the password change (otherwise the keys would be orphaned).
-        if (!string.IsNullOrWhiteSpace(model.NewKdfSalt) && !string.IsNullOrWhiteSpace(model.NewWrappedPrivateKeys)
-            && !string.IsNullOrEmpty(user.EncPublicKey))
-        {
-            user.KdfSalt = model.NewKdfSalt;
-            user.WrappedPrivateKeys = model.NewWrappedPrivateKeys;
-            user.UpdatedAtUtc = DateTime.UtcNow;
-            await this.users.UpdateAsync(user);
-        }
-
         await this.signIn.RefreshSignInAsync(user);
         this.TempData["Message"] = "Password changed.";
         return this.RedirectToAction(nameof(this.Settings));
-    }
-
-    /// <summary>Updates the password-wrapped private-key blob for the current member (used by the
-    /// recovery-code flow to re-key after a password reset). Requires an existing E2EE setup.</summary>
-    [HttpPost("e2ee-update-wrap")]
-    [ValidateAntiForgeryToken]
-    [Authorize]
-    public async Task<IActionResult> E2eeUpdateWrap(string? kdfSalt, string? wrappedPrivateKeys)
-    {
-        var user = await this.users.GetUserAsync(this.User);
-        if (user is null)
-        {
-            return this.Challenge();
-        }
-
-        if (string.IsNullOrEmpty(user.EncPublicKey) || string.IsNullOrWhiteSpace(kdfSalt) || string.IsNullOrWhiteSpace(wrappedPrivateKeys))
-        {
-            return this.BadRequest(new { ok = false, error = "Missing key material." });
-        }
-
-        user.KdfSalt = kdfSalt;
-        user.WrappedPrivateKeys = wrappedPrivateKeys;
-        user.UpdatedAtUtc = DateTime.UtcNow;
-        await this.users.UpdateAsync(user);
-        return this.Json(new { ok = true });
     }
 
     /// <summary>Retired: the old browser-encryption recovery page. Private messages are PGP now.</summary>
@@ -559,8 +436,11 @@ public class AccountController : Controller
         {
             var token = await this.users.GeneratePasswordResetTokenAsync(user);
             var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-            var link = this.Url.Action(nameof(this.ResetPassword), "Account",
-                new { userId = user.Id, token = encoded }, this.Request.Scheme);
+            // Built from the configured site URL, never the request's Host header: a forged Host
+            // would otherwise put the attacker's address (and the reset token) into the email.
+            var emailOptions = this.HttpContext.RequestServices.GetRequiredService<IOptions<EmailOptions>>().Value;
+            var link = $"{SiteLinks.BaseUrl(this.Request, emailOptions)}/account/reset-password"
+                + $"?userId={user.Id}&token={Uri.EscapeDataString(encoded)}";
 
             await this.email.SendAsync(
                 user.Email!,

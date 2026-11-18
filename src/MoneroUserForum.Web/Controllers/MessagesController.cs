@@ -12,6 +12,7 @@ using MoneroUserForum.Services.Reputation;
 using MoneroUserForum.Services.Storage;
 using MoneroUserForum.Web.Auth;
 using MoneroUserForum.Web.Models.Messages;
+using MoneroUserForum.Web.Support;
 
 namespace MoneroUserForum.Web.Controllers;
 
@@ -272,7 +273,8 @@ public class MessagesController : Controller
         var me = this.Uid();
         var pattern = "%" + query.Replace("%", "\\%").Replace("_", "\\_") + "%";
         var items = await this.db.Users
-            .Where(u => !u.IsDeleted && u.Id != me && EF.Functions.ILike(u.DisplayName, pattern))
+            // Approved, non-banned members only: pending accounts have no public presence yet.
+            .Where(u => !u.IsDeleted && u.IsApproved && !u.IsBanned && u.Id != me && EF.Functions.ILike(u.DisplayName, pattern))
             .OrderBy(u => u.DisplayName)
             .Take(8)
             .Select(u => new { name = u.DisplayName })
@@ -302,6 +304,15 @@ public class MessagesController : Controller
         {
             this.ViewData["DmBlocked"] = blocked;
             this.ModelState.AddModelError(string.Empty, blocked);
+            return this.View("Compose", model);
+        }
+
+        // Hourly cap per member, so one account can't flood inboxes (each message can also send an email).
+        var guard = this.HttpContext.RequestServices.GetRequiredService<SignupGuard>();
+        if (!PostingLimits.TryCount(guard, this.User, this.users.GetUserId(this.User), "pm",
+                PostingLimits.PrivateMessagesPerHour, PostingLimits.PrivateMessagesPerHour))
+        {
+            this.ModelState.AddModelError(string.Empty, PostingLimits.SlowDownMessage);
             return this.View("Compose", model);
         }
 

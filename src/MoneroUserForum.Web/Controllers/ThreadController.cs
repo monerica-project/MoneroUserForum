@@ -45,7 +45,11 @@ public class ThreadController : Controller
     // hidden here (the author still reaches it via its URL, and admins can see it) — so a new
     // member's posts don't go live until their account is approved.
     private IQueryable<ForumThread> VisibleThreads()
-        => this.db.ForumThreads.Where(t => !t.IsDeleted && !t.IsCensored && !t.Author!.IsDeleted && t.Author!.IsApproved);
+        => this.db.ForumThreads.Where(ThreadVisibility.IsPublic);
+
+    /// <summary>Threads the current viewer may open (public ones, plus their own pending ones; admins see all).</summary>
+    private IQueryable<ForumThread> ThreadsVisibleToMe()
+        => this.db.ForumThreads.Where(ThreadVisibility.VisibleTo(this.CurrentUserId(), this.User.IsInRole("Admin")));
 
     public async Task<List<ThreadListItem>> BuildListAsync(IQueryable<ForumThread> query, int page, string sort = "recent")
     {
@@ -156,9 +160,12 @@ public class ThreadController : Controller
 
         var threadPending = !threadAuthorApproved;
 
-        // Unique views — identified by a random per-browser cookie key, never an IP.
+        // Unique views — identified by a random per-browser cookie key, never an IP. Only a key the
+        // browser sent back counts (first visits just receive the cookie), so cookieless scripts
+        // can't add a row per request.
         var visitorKey = this.VisitorKey();
-        if (!await this.db.ThreadViews.AnyAsync(v => v.ThreadId == thread.Id && v.VisitorKey == visitorKey))
+        if (visitorKey is not null
+            && !await this.db.ThreadViews.AnyAsync(v => v.ThreadId == thread.Id && v.VisitorKey == visitorKey))
         {
             this.db.ThreadViews.Add(new ThreadView { ThreadId = thread.Id, VisitorKey = visitorKey, CreatedAtUtc = DateTime.UtcNow });
             try
@@ -202,7 +209,8 @@ public class ThreadController : Controller
                 p.IsCensored,
                 p.IsOpeningPost,
                 p.ReplyToPostId,
-                ReplyToAuthorName = p.ReplyToPost != null ? p.ReplyToPost.Author!.DisplayName : null,
+                // Name only approved authors: a reply to a hidden pending post must not reveal who wrote it.
+                ReplyToAuthorName = p.ReplyToPost != null && p.ReplyToPost.Author!.IsApproved ? p.ReplyToPost.Author.DisplayName : null,
                 p.CreatedAtUtc,
                 p.UpdatedAtUtc,
                 Images = p.Images.OrderBy(i => i.SortOrder).Select(i => i.StoragePath).ToList(),
@@ -374,14 +382,13 @@ public class ThreadController : Controller
         return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
     }
 
-    private string VisitorKey()
+    /// <summary>The visitor key the browser sent back, or null on a first visit (a new cookie is set then).</summary>
+    private string? VisitorKey()
     {
-        const string name = "muf.vid";
-        var vid = this.Request.Cookies[name];
-        if (string.IsNullOrEmpty(vid) || vid.Length > 64)
+        var existing = VisitorCookie.ReadExisting(this.Request.Cookies[VisitorCookie.Name]);
+        if (existing is null)
         {
-            vid = Guid.NewGuid().ToString("N");
-            this.Response.Cookies.Append(name, vid, new CookieOptions
+            this.Response.Cookies.Append(VisitorCookie.Name, VisitorCookie.NewKey(), new CookieOptions
             {
                 HttpOnly = true,
                 IsEssential = true,
@@ -391,7 +398,7 @@ public class ThreadController : Controller
             });
         }
 
-        return vid;
+        return existing;
     }
 
     [HttpGet("create")]
@@ -434,6 +441,12 @@ public class ThreadController : Controller
             return this.View(model);
         }
 
+        if (!this.TryCountPosting("thread", PostingLimits.ThreadsPerHour, PostingLimits.UnapprovedThreadsPerHour))
+        {
+            this.ModelState.AddModelError(string.Empty, PostingLimits.SlowDownMessage);
+            return this.View(model);
+        }
+
         var authorId = this.CurrentUserId()!.Value;
         var now = DateTime.UtcNow;
 
@@ -443,10 +456,11 @@ public class ThreadController : Controller
             slug = "thread";
         }
 
-        // A live thread with this title already exists — point the member to it
-        // instead of creating a near-duplicate.
-        var clash = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Slug == slug);
-        if (clash is { IsDeleted: false })
+        // A thread with this title already exists that this member may see — point them to it
+        // instead of creating a near-duplicate. A hidden one (censored, or by an unapproved member)
+        // is never named here; the new thread just gets a nudged slug below, like a deleted one.
+        var clash = await this.ThreadsVisibleToMe().FirstOrDefaultAsync(t => t.Slug == slug);
+        if (clash is not null)
         {
             this.ModelState.AddModelError(nameof(model.Title), "A thread with this title already exists.");
             this.ViewBag.ExistingSlug = clash.Slug;
@@ -454,7 +468,7 @@ public class ThreadController : Controller
             return this.View(model);
         }
 
-        // Only a deleted thread holds the slug — nudge past it so the unique index is happy.
+        // Only a deleted or hidden thread holds the slug — nudge past it so the unique index is happy.
         var baseSlug = slug;
         var n = 1;
         while (await this.db.ForumThreads.AnyAsync(t => t.Slug == slug))
@@ -509,10 +523,18 @@ public class ThreadController : Controller
     [Authorize(Policy = Policies.CanContribute)]
     public async Task<IActionResult> Reply(ReplyViewModel model, List<IFormFile>? images)
     {
-        var thread = await this.db.ForumThreads.FirstOrDefaultAsync(t => t.Id == model.ThreadId && !t.IsDeleted);
+        // Only threads this member may see: the redirect below puts the slug (the title) in the
+        // URL, so a censored or pending thread must 404 here just as it does on its own page.
+        var thread = await this.ThreadsVisibleToMe().FirstOrDefaultAsync(t => t.Id == model.ThreadId);
         if (thread is null)
         {
             return this.NotFound();
+        }
+
+        if (!this.TryCountPosting("reply", PostingLimits.RepliesPerHour, PostingLimits.UnapprovedRepliesPerHour))
+        {
+            this.TempData["Error"] = PostingLimits.SlowDownMessage;
+            return this.RedirectToAction(nameof(this.View), new { slug = thread.Slug });
         }
 
         if (thread.IsLocked)
@@ -547,8 +569,15 @@ public class ThreadController : Controller
             UpdatedAtUtc = now,
         };
         this.db.Posts.Add(post);
-        thread.LastPostAtUtc = now;
-        thread.UpdatedAtUtc = now;
+
+        // A reply from a member who isn't approved yet is hidden from everyone else, so it must
+        // not bump the thread to the top of the lists either.
+        if (this.User.HasClaim("approved", "true"))
+        {
+            thread.LastPostAtUtc = now;
+            thread.UpdatedAtUtc = now;
+        }
+
         await this.db.SaveChangesAsync();
 
         await this.AttachImagesAsync(post, images, now);
@@ -620,6 +649,16 @@ public class ThreadController : Controller
 
         if (!this.ModelState.IsValid)
         {
+            model.PostId = post.Id;
+            model.ThreadSlug = post.Thread.Slug;
+            model.IsOpeningPost = post.IsOpeningPost;
+            return this.View(model);
+        }
+
+        // Every edit is re-checked by the AI scanner, so edits are capped like new posts.
+        if (!this.TryCountPosting("edit", PostingLimits.EditsPerHour, PostingLimits.UnapprovedEditsPerHour))
+        {
+            this.ModelState.AddModelError(string.Empty, PostingLimits.SlowDownMessage);
             model.PostId = post.Id;
             model.ThreadSlug = post.Thread.Slug;
             model.IsOpeningPost = post.IsOpeningPost;
@@ -752,6 +791,15 @@ public class ThreadController : Controller
             return this.NotFound();
         }
 
+        // A member can only report what they are able to open: a hidden or pending thread
+        // answers "not found" here too, so this action cannot be used to probe for it.
+        var reportViewerIsAdmin = this.User.IsInRole("Admin");
+        if (!await this.db.ForumThreads.Where(t => t.Id == threadId)
+                .AnyAsync(MoneroUserForum.Web.Support.ThreadVisibility.VisibleTo(uid, reportViewerIsAdmin)))
+        {
+            return this.NotFound();
+        }
+
         // Don't stack duplicate pending reports from the same member on the same post.
         var already = await this.db.Reports.AnyAsync(r =>
             r.PostId == postId && r.ReporterUserId == uid && r.Status == ReportStatus.Pending);
@@ -792,13 +840,21 @@ public class ThreadController : Controller
             return this.Challenge();
         }
 
+        // Only live, publicly visible posts (approved author, in a thread this member may see), and
+        // never your own, can be thanked. Hidden ones 404, so the redirect can't reveal their thread.
+        var visible = this.ThreadsVisibleToMe();
         var post = await this.db.Posts.Include(p => p.Thread)
+            .Where(p => p.Author!.IsApproved && !p.Author.IsDeleted && visible.Any(t => t.Id == p.ThreadId))
             .FirstOrDefaultAsync(p => p.Id == id);
-
-        // Only live posts, and never your own, can be thanked.
-        if (post?.Thread is null || post.Thread.IsDeleted || post.IsDeleted || post.IsCensored || post.AuthorId == uid)
+        if (post?.Thread is null || post.IsDeleted || post.IsCensored || post.AuthorId == uid)
         {
             return this.NotFound();
+        }
+
+        if (!this.TryCountPosting("thank", PostingLimits.ThanksPerHour, PostingLimits.ThanksPerHour))
+        {
+            this.TempData["Error"] = PostingLimits.SlowDownMessage;
+            return this.Redirect($"/thread/{post.Thread.Slug}");
         }
 
         var existing = await this.db.PostThanks
@@ -1080,6 +1136,12 @@ public class ThreadController : Controller
     // Editing a post is author-only — an admin editing someone else's words would only ever be an
     // accident. Admins still moderate via delete / censor (which use CanModify above).
     private bool IsAuthor(int authorId) => this.CurrentUserId() == authorId;
+
+    /// <summary>Counts one write by the current member against their hourly cap (see PostingLimits).</summary>
+    private bool TryCountPosting(string action, int approvedPerHour, int unapprovedPerHour)
+        => PostingLimits.TryCount(
+            this.HttpContext.RequestServices.GetRequiredService<SignupGuard>(),
+            this.User, this.users.GetUserId(this.User), action, approvedPerHour, unapprovedPerHour);
 
     private int? CurrentUserId()
     {

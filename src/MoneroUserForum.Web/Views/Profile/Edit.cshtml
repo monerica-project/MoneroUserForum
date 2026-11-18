@@ -87,6 +87,12 @@
                 After saving, you'll decrypt a short code to prove the key is yours. Only verified keys are shown to others.
                 Export it with <code>gpg --armor --export you@@example.com</code>.</div>
         </div>
+        <div class="form-group">
+            <label asp-for="CurrentPassword"></label>
+            <input asp-for="CurrentPassword" autocomplete="current-password" />
+            <span asp-validation-for="CurrentPassword" class="text-danger"></span>
+            <div class="hint">Leave blank unless you are adding, changing or removing your PGP key.</div>
+        </div>
         <button type="submit" class="btn btn-primary">Save profile</button>
     </form>
 </div>

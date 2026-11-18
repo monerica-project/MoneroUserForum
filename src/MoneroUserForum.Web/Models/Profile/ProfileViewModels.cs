@@ -117,6 +117,14 @@ public class ProfileEditViewModel
     [Display(Name = "PGP public key")]
     public string? PgpPublicKey { get; set; }
 
+    /// <summary>
+    /// Needed only when the PGP key is added, changed or removed: messages to this member are
+    /// encrypted to that key, so a stolen session alone must not be enough to swap it.
+    /// </summary>
+    [DataType(DataType.Password)]
+    [Display(Name = "Current password (only needed to change your PGP key)")]
+    public string? CurrentPassword { get; set; }
+
     // Read-only status shown next to the key box.
     public string? PgpFingerprint { get; set; }
     public DateTime? PgpVerifiedAtUtc { get; set; }

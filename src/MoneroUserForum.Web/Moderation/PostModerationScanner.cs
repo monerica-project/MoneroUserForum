@@ -73,27 +73,39 @@ public sealed class PostModerationScanner : BackgroundService
         var posts = await db.Posts.AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsCensored && !p.Thread!.IsDeleted && !p.Thread.IsCensored)
             .OrderBy(p => p.Id)
-            .Select(p => new { p.Id, p.Body, p.IsOpeningPost, Title = p.Thread!.Title })
+            .Select(p => new { p.Id, p.Body, p.IsOpeningPost, Title = p.Thread!.Title, AuthorApproved = p.Author!.IsApproved })
             .ToListAsync(ct);
         var existing = await db.PostModerations.AsNoTracking()
             .Select(m => new { m.PostId, m.BodyHash, m.State })
             .ToDictionaryAsync(m => m.PostId, ct);
 
-        var todo = posts
-            .Select(p => new ModerationItem(p.Id, p.IsOpeningPost ? p.Title : null, p.Body ?? string.Empty))
-            .Where(i => !existing.TryGetValue(i.PostId, out var m)
+        // Approved members' posts (the ones others actually see) come first, so a flood from fresh
+        // unapproved accounts can't use up the daily budget ahead of them.
+        var pending = posts
+            .Select(p => (Item: new ModerationItem(p.Id, p.IsOpeningPost ? p.Title : null, p.Body ?? string.Empty), p.AuthorApproved))
+            .Where(x => !existing.TryGetValue(x.Item.PostId, out var m)
                         || m.State == PostModerationState.Error
-                        || m.BodyHash != ModerationHash.Of(i.ThreadTitle, i.Body))
+                        || m.BodyHash != ModerationHash.Of(x.Item.ThreadTitle, x.Item.Body))
+            .OrderByDescending(x => x.AuthorApproved)
             .Take(budget)
             .ToList();
-        if (todo.Count == 0)
+        if (pending.Count == 0)
         {
             return 0;
         }
 
+        var todo = pending.Select(x => x.Item).ToList();
+
+        // Posts by unapproved accounts are checked one per request: in a shared batch, text in one
+        // post could try to argue about the verdict on another.
+        var batches = pending.Where(x => x.AuthorApproved).Select(x => x.Item)
+            .Chunk(Math.Max(1, this.options.BatchSize))
+            .Concat(pending.Where(x => !x.AuthorApproved).Select(x => new[] { x.Item }))
+            .ToList();
+
         var client = new ClaudeModerationClient(this.httpFactory.CreateClient("anthropic"), this.options, this.apiKey);
         int flagged = 0;
-        foreach (var batch in todo.Chunk(Math.Max(1, this.options.BatchSize)))
+        foreach (var batch in batches)
         {
             var result = await client.CheckAsync(batch, ct);
 

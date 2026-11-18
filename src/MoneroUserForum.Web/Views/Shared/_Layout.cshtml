@@ -6,10 +6,13 @@
 
     // ---- SEO / social ----
     var pageTitle = ViewData["Title"] as string;
-    var fullTitle = string.IsNullOrEmpty(pageTitle) ? "Monero User Forum" : pageTitle + " · Monero User Forum";
+    var fullTitle = string.IsNullOrEmpty(pageTitle) ? "Monero User Forum: Monero Discussion, Help and Price Talk" : pageTitle + " · Monero User Forum";
     var metaDesc = ViewData["Description"] as string
         ?? "A forum for Monero users to communicate — price talk, technical help, and general discussion. No email required, works over Tor.";
-    var canonical = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
+    // Canonical/og:url come from the configured site URL (or configured onion host), not the
+    // request's Host header, which any visitor can set.
+    var siteOptions = Context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<MoneroUserForum.Services.Email.EmailOptions>>().Value;
+    var canonical = $"{MoneroUserForum.Web.Support.SiteLinks.BaseUrl(Context.Request, siteOptions)}{Context.Request.Path}";
     var ogImage = "https://cdn.monerouserforum.com/monerouserforum.png";
     var ctrl = (ViewContext.RouteData.Values["controller"] as string ?? string.Empty).ToLowerInvariant();
     var privateArea = ctrl is "account" or "admin" or "messages" or "notifications";
